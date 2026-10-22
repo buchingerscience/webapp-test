@@ -1,7 +1,21 @@
 {
-  "name": "webapp-test",
+  "name": "innercalm",
   "version": "1.0.0",
+  "description": "Inner Calm study web app — Buchinger Wilhelmi",
   "type": "module",
   "private": true,
-  "scripts": { "start": "node server.js" }
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.22.3",
+    "nodemailer": "^6.10.1"
+  }
 }

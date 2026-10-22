@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Inner Calm · Admin</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    main { max-width: 1100px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+    th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+    th { font-weight: 500; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+    .scroll { overflow-x: auto; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .row .btn { width: auto; }
+    .banner { border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-size: 15px; }
+    .banner.warn { background: var(--open-soft); color: #7a5222; }
+    .banner.good { background: var(--accent-soft); color: var(--accent); }
+    td input[type=date] { margin: 0; padding: 6px 8px; min-height: 0; font-size: 14px; width: 150px; display: inline-block; }
+    .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: #eee9e1; }
+    .tag.sent { background: var(--accent-soft); color: var(--accent); }
+    .tag.failed { background: #f6dcd5; color: var(--danger); }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .stat { background: var(--card); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+    .stat b { display: block; font-size: 26px; font-weight: 500; }
+    .stat span { font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header class="top" style="max-width:1100px"><img src="/logo_bw.svg" alt="Buchinger Wilhelmi" style="height:26px"><span class="eyebrow">Inner Calm · Admin</span></header>
+  <main id="app"></main>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

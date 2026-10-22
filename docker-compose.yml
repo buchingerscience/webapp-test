@@ -1,18 +1,30 @@
 services:
   webapp-test:
     build: .
-    container_name: webapp-test        # nginx reaches the app by this name
+    container_name: webapp-test          # nginx reaches the app by this name
     expose:
-      - "3000"                         # internal only — no host port (3000 is used by FASTEX)
+      - "3000"                           # internal only — no host port
+    env_file:
+      - path: .env                       # secrets live on the server only (never in git)
+        required: false
+    environment:
+      - STUDY_TZ=Europe/Berlin
+      - OPEN_HOUR=6
+    volumes:
+      - innercalm-data:/app/data         # the SQLite database survives redeploys
     restart: unless-stopped
     networks:
       - shared-proxy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
 
+volumes:
+  innercalm-data:
+    name: innercalm-data
+
 networks:
   shared-proxy:
-    external: true                     # the network the shared nginx is attached to
+    external: true

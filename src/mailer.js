@@ -108,7 +108,7 @@ export function sendQuestionnaireEmail(user, inst) {
   const L = t(user.language);
   const link = `${APP_URL}/#/journey`;
   const isEnd = inst.slot === 'end';
-  const p = isEnd || inst.arm === 'control' ? null : practiceFor(inst.day_number, inst.total_days || 0);
+  const p = isEnd ? null : practiceFor(inst.day_number, inst.total_days || 0);
   const title = p ? (p.title[user.language] || p.title.en) : '';
   const subject = isEnd ? L.endSubject : L.dailySubject(inst.day_number, title);
   const body = isEnd ? L.endBody : L.dailyBody(inst.day_number, title, p?.exercise.minutes);

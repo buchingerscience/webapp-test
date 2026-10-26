@@ -72,20 +72,4 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 `);
 
-// Randomisation (added later — migrate existing databases in place)
-db.exec(`
-CREATE TABLE IF NOT EXISTS allocation_sequence (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  clinic   TEXT NOT NULL,
-  block    INTEGER NOT NULL,
-  position INTEGER NOT NULL,
-  arm      TEXT NOT NULL,          -- 'meditation' | 'control'
-  user_id  INTEGER UNIQUE,         -- filled when allocated
-  used_at  TEXT
-);
-`);
-const stayCols = db.prepare('PRAGMA table_info(stays)').all().map((c) => c.name);
-if (!stayCols.includes('arm')) db.exec('ALTER TABLE stays ADD COLUMN arm TEXT');
-if (!stayCols.includes('allocated_at')) db.exec('ALTER TABLE stays ADD COLUMN allocated_at TEXT');
-
 export const nowIso = () => new Date().toISOString();

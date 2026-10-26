@@ -5,21 +5,7 @@ Questionnaires follow the study brief *"Flywheel 1 brief on meditation"*, sectio
 
 Live at **https://test.buchinger-science.com** · Admin at **https://test.buchinger-science.com/admin**
 
-## Study design: randomised, two groups
-
-Inner Calm is presented to guests as a study on **inner calm during fasting**, not as a meditation study. After the welcome questionnaire, each participant is **allocated at random** to one of two groups:
-
-| Group | What they get |
-|---|---|
-| **Meditation** (`arm = meditation`) | The 10-day programme: each morning a theme, an excerpt and a 15–20 minute seated meditation; each evening the journal |
-| **Journal** (`arm = control`) | The same app, emails and evening journal, with no meditation guidance and no programme content |
-
-- **Allocation** happens on the server, *after* the baseline answers are saved, so they cannot be influenced by the group. Permuted blocks of random size 2 or 4, stratified by clinic (`src/randomise.js`). Every allocation is kept in the `allocation_sequence` table for auditing.
-- **The consent text** says honestly that there are two groups allocated at random, and that both are equally important.
-- **The journal group is never told not to meditate.** Both groups answer the daily meditation question, so spontaneous meditation in the journal group is measured.
-- **The arm** is in every sheet of the Excel export; the admin page shows the group of each participant and the group sizes.
-
-## The meditation programme (meditation group only)
+## The meditation programme
 
 Each day of the stay has a short practice inspired by Father **Niklaus Brantschen SJ**, from his lecture *"Fasting and Silence: Twin Companions"*. The text lives in `shared/programme.js`.
 

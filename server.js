@@ -10,7 +10,6 @@ import { rebuildSchedule, MAX_STAY_DAYS } from './src/schedule.js';
 import { sendResetEmail, smtpConfigured, APP_URL } from './src/mailer.js';
 import { startScheduler, tick } from './src/scheduler.js';
 import { buildWorkbook } from './src/export.js';
-import { allocate } from './src/randomise.js';
 import { validateAnswers, LANGS, CLINICS } from './shared/questionnaires.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -85,7 +84,7 @@ function requireAdmin(req, res, next) {
 
 function journey(userId) {
   const now = localNow();
-  const stay = db.prepare('SELECT clinic, arrival_date, departure_date, arm FROM stays WHERE user_id = ?').get(userId) || null;
+  const stay = db.prepare('SELECT clinic, arrival_date, departure_date FROM stays WHERE user_id = ?').get(userId) || null;
   const rows = db.prepare(`SELECT id, kind, slot, day_number, open_date, close_date, completed_at FROM instances
                            WHERE user_id = ? ORDER BY CASE slot WHEN 'baseline' THEN 0 WHEN 'end' THEN 2 ELSE 1 END, day_number`).all(userId);
   return { stay, timeline: rows.map((r) => ({ ...r, status: statusOf(r, now) })), today: now.date, openHour: OPEN_HOUR };
@@ -170,10 +169,7 @@ app.post('/api/baseline', requireUser, (req, res) => {
 
   const today = localNow().date;
   db.transaction(() => {
-    // Randomise only after the baseline answers are validated (they cannot be influenced by the arm)
-    const arm = allocate(req.user.id, clinic);
-    db.prepare('INSERT INTO stays (user_id, clinic, arrival_date, departure_date, arm, allocated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(req.user.id, clinic, a, d, arm, nowIso());
+    db.prepare('INSERT INTO stays (user_id, clinic, arrival_date, departure_date) VALUES (?, ?, ?, ?)').run(req.user.id, clinic, a, d);
     db.prepare(`INSERT INTO instances (user_id, kind, slot, open_date, close_date, email_status, completed_at, answers_json)
                 VALUES (?, 'Q1', 'baseline', ?, ?, 'skipped', ?, ?)`).run(req.user.id, today, today, nowIso(), JSON.stringify(v.clean));
     rebuildSchedule(req.user.id, a, d);
@@ -216,7 +212,7 @@ app.post('/api/admin/login', limit(10, 15 * 60000), (req, res) => {
 
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const now = localNow();
-  const users = db.prepare(`SELECT u.id, u.participant_code, u.email, u.language, u.created_at, s.clinic, s.arrival_date, s.departure_date, s.arm
+  const users = db.prepare(`SELECT u.id, u.participant_code, u.email, u.language, u.created_at, s.clinic, s.arrival_date, s.departure_date
                             FROM users u LEFT JOIN stays s ON s.user_id = u.id ORDER BY u.id DESC`).all();
   const inst = db.prepare('SELECT user_id, open_date, close_date, completed_at FROM instances').all();
   const per = {};

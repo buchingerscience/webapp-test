@@ -297,11 +297,10 @@ function wireForm(kind, submit) {
 function slotLabel(i) {
   if (i.slot === 'baseline') return [t().baselineLabel, t().baselineSub];
   if (i.slot === 'end') return [t().endLabel, `${t().endSub} · ${fmtDate(i.open_date)}`];
-  const p = isMeditation() ? practiceFor(i.day_number, totalDays()) : null;
+  const p = practiceFor(i.day_number, totalDays());
   return [t().dayTitle(i.day_number, p ? tx(p.title) : ''), `${fmtDate(i.open_date)} · ${t().dailySub}`];
 }
 
-const isMeditation = () => (state.me?.stay?.arm || 'meditation') === 'meditation';
 const totalDays = () => (state.me?.timeline || []).filter((x) => x.kind === 'Q2').length;
 const prevDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join('');
@@ -354,7 +353,7 @@ function viewJourney() {
       ${stay ? `<p class="muted">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
       <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
       <p class="small muted">${t().progress(done, timeline.length)}</p>
-      <div class="programme-intro"><strong>${isMeditation() ? t().groupMedTitle : t().groupCtlTitle}</strong><p>${esc(isMeditation() ? t().programmeIntro : t().groupCtlText)}</p></div>
+      <div class="programme-intro"><p>${esc(t().programmeIntro)}</p></div>
     </div>
     ${done === timeline.length ? `<div class="card done-all">${t().allDone}</div>` : ''}
     <ol class="timeline">${items}</ol>`);
@@ -369,7 +368,7 @@ async function viewQuestionnaire(id) {
   const intro = inst.kind === 'Q2' ? t().dailyIntro : inst.slot === 'end' ? t().endIntro : '';
   const d = state.draft[location.hash] || { answers: {} };
   const daily = inst.kind === 'Q2';
-  const med = daily && isMeditation();
+  const med = daily;
   const p = med ? practiceFor(inst.day_number, totalDays()) : null;
   const head = daily
     ? `<div class="intro"><p class="eyebrow">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1></div>

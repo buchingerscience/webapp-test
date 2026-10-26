@@ -24,6 +24,7 @@ const who5Labels = {
 };
 
 const SCALE_0_5 = { type: 'scale', min: 0, max: 5, anchors: notAtAll_veryMuch };
+const SCALE_0_5_EXPECT = SCALE_0_5;
 const WHO5 = { type: 'labelled', min: 0, max: 5, labels: who5Labels, descending: true };
 // mPERMA: brief says "validated response scale should be retained exactly".
 // PERMA-Profiler uses 0–10; confirm the exact anchors before real data collection.
@@ -34,6 +35,54 @@ const SCALE_0_10_PERMA = {
 const SCALE_0_10_SLEEP = {
   type: 'scale', min: 0, max: 10,
   anchors: { en: ['Very poorly', 'Extremely well'], de: ['Sehr schlecht', 'Ausgezeichnet'], fr: ['Très mal', 'Extrêmement bien'], es: ['Muy mal', 'Extremadamente bien'] },
+};
+
+// "{yesterday}" is replaced in the app by the calendar date of the day before the questionnaire opened.
+const MEDITATION_YESTERDAY = [
+  { id: 'meditated_yesterday', response: { type: 'yesno' },
+    text: { en: 'Did you meditate yesterday ({yesterday})?', de: 'Haben Sie gestern ({yesterday}) meditiert?', fr: 'Avez-vous médité hier ({yesterday}) ?', es: '¿Meditó ayer ({yesterday})?' } },
+  { id: 'meditation_minutes_yesterday', showIf: { item: 'meditated_yesterday', equals: 1 },
+    response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } },
+    text: { en: 'Approximately how many minutes did you meditate in total yesterday?', de: 'Wie viele Minuten haben Sie gestern insgesamt ungefähr meditiert?', fr: 'Combien de minutes environ avez-vous médité au total hier ?', es: '¿Aproximadamente cuántos minutos meditó en total ayer?' } },
+];
+
+const choice = (labels) => ({ type: 'choice', options: labels.en.map((_, i) => ({ value: i, label: Object.fromEntries(Object.entries(labels).map(([l, arr]) => [l, arr[i]])) })) });
+
+// Baseline only — meditation background (covariates for the analysis)
+const MEDITATION_HABITS = {
+  id: 'habits',
+  only: 'baseline',
+  title: { en: 'Your meditation experience', de: 'Ihre Meditationserfahrung', fr: 'Votre expérience de la méditation', es: 'Su experiencia con la meditación' },
+  items: [
+    { id: 'med_ever', response: choice({
+        en: ['Never', 'I have tried it a few times', 'Occasionally', 'Regularly in the past, but not at present', 'Regularly at present'],
+        de: ['Nie', 'Ich habe es ein paar Mal ausprobiert', 'Gelegentlich', 'Früher regelmäßig, derzeit nicht', 'Derzeit regelmäßig'],
+        fr: ['Jamais', 'J’ai essayé quelques fois', 'Occasionnellement', 'Régulièrement par le passé, mais plus maintenant', 'Régulièrement en ce moment'],
+        es: ['Nunca', 'Lo he probado algunas veces', 'Ocasionalmente', 'Regularmente en el pasado, pero no ahora', 'Regularmente en la actualidad'] }),
+      text: { en: 'Have you ever practised meditation?', de: 'Haben Sie schon einmal meditiert?', fr: 'Avez-vous déjà pratiqué la méditation ?', es: '¿Ha practicado alguna vez la meditación?' } },
+    { id: 'med_years', showIf: { item: 'med_ever', min: 1 },
+      response: { type: 'number', min: 0, max: 80, unit: { en: 'years', de: 'Jahre', fr: 'ans', es: 'años' } },
+      text: { en: 'For about how many years have you practised meditation, including breaks? (0 if less than a year)', de: 'Seit wie vielen Jahren meditieren Sie ungefähr, Pausen eingeschlossen? (0, wenn weniger als ein Jahr)', fr: 'Depuis combien d’années environ pratiquez-vous la méditation, pauses comprises ? (0 si moins d’un an)', es: '¿Desde hace cuántos años practica la meditación aproximadamente, incluidas las pausas? (0 si es menos de un año)' } },
+    { id: 'med_freq_month', response: choice({
+        en: ['Not at all', 'Less than once a week', 'Once or twice a week', 'Three to five times a week', 'Daily or almost daily'],
+        de: ['Gar nicht', 'Seltener als einmal pro Woche', 'Ein- bis zweimal pro Woche', 'Drei- bis fünfmal pro Woche', 'Täglich oder fast täglich'],
+        fr: ['Pas du tout', 'Moins d’une fois par semaine', 'Une ou deux fois par semaine', 'Trois à cinq fois par semaine', 'Tous les jours ou presque'],
+        es: ['Nada', 'Menos de una vez por semana', 'Una o dos veces por semana', 'De tres a cinco veces por semana', 'A diario o casi a diario'] }),
+      text: { en: 'In the past month, how often did you meditate?', de: 'Wie oft haben Sie im letzten Monat meditiert?', fr: 'Au cours du dernier mois, à quelle fréquence avez-vous médité ?', es: 'En el último mes, ¿con qué frecuencia meditó?' } },
+    { id: 'med_minutes_typical', showIf: { item: 'med_freq_month', min: 1 },
+      response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } },
+      text: { en: 'On days when you meditate, how many minutes do you usually meditate?', de: 'Wie viele Minuten meditieren Sie üblicherweise an Tagen, an denen Sie meditieren?', fr: 'Les jours où vous méditez, combien de minutes méditez-vous habituellement ?', es: 'Los días que medita, ¿cuántos minutos suele meditar?' } },
+    { id: 'med_style', showIf: { item: 'med_ever', min: 1 }, response: choice({
+        en: ['Breath or mindfulness meditation', 'Zen / zazen', 'Mantra meditation (e.g. Transcendental Meditation)', 'Loving-kindness or compassion meditation', 'Body scan or yoga nidra', 'Guided meditation (app or audio)', 'Prayer or contemplative practice', 'Other'],
+        de: ['Atem- oder Achtsamkeitsmeditation', 'Zen / Zazen', 'Mantra-Meditation (z. B. Transzendentale Meditation)', 'Liebende-Güte- oder Mitgefühlsmeditation', 'Body-Scan oder Yoga Nidra', 'Geführte Meditation (App oder Audio)', 'Gebet oder kontemplative Praxis', 'Andere'],
+        fr: ['Méditation sur la respiration ou de pleine conscience', 'Zen / zazen', 'Méditation avec mantra (p. ex. Méditation transcendantale)', 'Méditation de bienveillance ou de compassion', 'Body scan ou yoga nidra', 'Méditation guidée (application ou audio)', 'Prière ou pratique contemplative', 'Autre'],
+        es: ['Meditación de la respiración o mindfulness', 'Zen / zazen', 'Meditación con mantra (p. ej., Meditación Trascendental)', 'Meditación de bondad amorosa o compasión', 'Escaneo corporal o yoga nidra', 'Meditación guiada (app o audio)', 'Oración o práctica contemplativa', 'Otra'] }),
+      text: { en: 'Which kind of meditation have you practised most?', de: 'Welche Art von Meditation haben Sie am häufigsten praktiziert?', fr: 'Quel type de méditation avez-vous le plus pratiqué ?', es: '¿Qué tipo de meditación ha practicado más?' } },
+    { id: 'med_retreat', showIf: { item: 'med_ever', min: 1 }, response: { type: 'yesno' },
+      text: { en: 'Have you ever taken part in a meditation retreat (one day or longer)?', de: 'Haben Sie schon einmal an einem Meditationsretreat teilgenommen (einen Tag oder länger)?', fr: 'Avez-vous déjà participé à une retraite de méditation (d’une journée ou plus) ?', es: '¿Ha participado alguna vez en un retiro de meditación (de un día o más)?' } },
+    { id: 'med_expectation', response: SCALE_0_5_EXPECT,
+      text: { en: 'How much do you expect daily meditation to help you during this stay?', de: 'Wie sehr wird Ihnen Ihrer Erwartung nach die tägliche Meditation während dieses Aufenthalts helfen?', fr: 'Dans quelle mesure pensez-vous que la méditation quotidienne vous aidera pendant ce séjour ?', es: '¿En qué medida espera que la meditación diaria le ayude durante esta estancia?' } },
+  ],
 };
 
 export const QUESTIONNAIRES = {
@@ -75,6 +124,13 @@ export const QUESTIONNAIRES = {
           { id: 'growth_3', text: { en: 'I felt that I was growing or developing as a person.', de: 'Ich hatte das Gefühl, als Mensch zu wachsen oder mich weiterzuentwickeln.', fr: "J'ai eu le sentiment de grandir ou de me développer en tant que personne.", es: 'Sentí que crecía o me desarrollaba como persona.' } },
         ],
       },
+      MEDITATION_HABITS,
+      {
+        id: 'meditation_end',
+        only: 'end',
+        title: { en: 'Meditation yesterday', de: 'Meditation gestern', fr: 'Méditation hier', es: 'Meditación ayer' },
+        items: MEDITATION_YESTERDAY,
+      },
     ],
   },
 
@@ -113,12 +169,8 @@ export const QUESTIONNAIRES = {
       },
       {
         id: 'meditation',
-        title: { en: 'Meditation', de: 'Meditation', fr: 'Méditation', es: 'Meditación' },
-        items: [
-          { id: 'meditated', response: { type: 'yesno' }, text: { en: 'Did you meditate today?', de: 'Haben Sie heute meditiert?', fr: "Avez-vous médité aujourd'hui ?", es: '¿Ha meditado hoy?' } },
-          { id: 'meditation_minutes', response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } }, showIf: { item: 'meditated', equals: 1 },
-            text: { en: 'Approximately how many minutes did you meditate today?', de: 'Wie viele Minuten haben Sie heute ungefähr meditiert?', fr: "Combien de minutes environ avez-vous médité aujourd'hui ?", es: '¿Aproximadamente cuántos minutos ha meditado hoy?' } },
-        ],
+        title: { en: 'Meditation yesterday', de: 'Meditation gestern', fr: 'Méditation hier', es: 'Meditación ayer' },
+        items: MEDITATION_YESTERDAY,
       },
       {
         id: 'sleep',
@@ -137,26 +189,45 @@ export const CLINICS = [
   { id: 'marbella', label: 'Buchinger Wilhelmi Marbella' },
 ];
 
-/** Flat list of items with their resolved response definition. */
-export function itemsOf(kind) {
+export function sectionsOf(kind, slot) {
+  return QUESTIONNAIRES[kind].sections.filter((s) => !slot || !s.only || s.only === slot);
+}
+
+/** Is a conditional item shown, given the answers so far? */
+export function isShown(it, answers) {
+  if (!it.showIf) return true;
+  const v = answers[it.showIf.item];
+  if (v === undefined || v === null || v === '') return false;
+  if ('equals' in it.showIf) return Number(v) === it.showIf.equals;
+  if ('min' in it.showIf) return Number(v) >= it.showIf.min;
+  return true;
+}
+
+/** Flat list of items (optionally only those asked at a given slot, e.g. 'baseline' / 'end'). */
+export function itemsOf(kind, slot) {
   const out = [];
-  for (const s of QUESTIONNAIRES[kind].sections) {
+  for (const s of sectionsOf(kind, slot)) {
     for (const it of s.items) out.push({ ...it, section: s.id, response: it.response || s.response });
   }
   return out;
 }
 
 /** Validate answers against the definition. Returns { ok, clean, errors }. */
-export function validateAnswers(kind, answers) {
+export function validateAnswers(kind, answers, slot) {
   const clean = {};
   const errors = [];
   if (!answers || typeof answers !== 'object') return { ok: false, clean, errors: ['answers missing'] };
-  for (const it of itemsOf(kind)) {
-    if (it.showIf && Number(answers[it.showIf.item]) !== it.showIf.equals) { clean[it.id] = null; continue; }
+  for (const it of itemsOf(kind, slot)) {
+    if (!isShown(it, answers)) { clean[it.id] = null; continue; }
     const raw = answers[it.id];
     if (raw === undefined || raw === null || raw === '') { errors.push(it.id); continue; }
     const v = Number(raw);
     const r = it.response;
+    if (r.type === 'choice') {
+      if (!r.options.some((o) => o.value === v)) { errors.push(it.id); continue; }
+      clean[it.id] = v;
+      continue;
+    }
     const [min, max] = r.type === 'yesno' ? [0, 1] : [r.min, r.max];
     if (!Number.isFinite(v) || v < min || v > max || (r.type !== 'number' && !Number.isInteger(v))) { errors.push(it.id); continue; }
     clean[it.id] = v;

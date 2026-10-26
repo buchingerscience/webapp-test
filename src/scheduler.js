@@ -17,7 +17,9 @@ export async function tick() {
     if (now.hour < OPEN_HOUR) return;
 
     const due = db.prepare(`
-      SELECT i.*, u.email, u.language FROM instances i JOIN users u ON u.id = i.user_id
+      SELECT i.*, u.email, u.language, s.arm,
+        (SELECT COUNT(*) FROM instances x WHERE x.user_id = i.user_id AND x.kind = 'Q2') AS total_days
+      FROM instances i JOIN users u ON u.id = i.user_id LEFT JOIN stays s ON s.user_id = i.user_id
       WHERE i.email_status = 'pending' AND i.open_date = ? AND i.completed_at IS NULL`).all(now.date);
 
     for (const inst of due) {

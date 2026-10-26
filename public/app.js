@@ -1,5 +1,6 @@
 import { UI, LANG_LABELS, LOCALES } from './i18n.js';
-import { QUESTIONNAIRES, CLINICS, LANGS, itemsOf } from '/shared/questionnaires.js';
+import { CLINICS, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js';
+import { practiceFor } from '/shared/programme.js';
 
 // ---------- state ----------
 const store = {
@@ -75,7 +76,7 @@ function setLang(l) {
 }
 
 // ---------- questionnaire rendering ----------
-function renderItem(it, value, ro) {
+function renderItem(it, value, ro, ctx = {}) {
   const r = it.response;
   const name = esc(it.id);
   let control = '';
@@ -92,6 +93,9 @@ function renderItem(it, value, ro) {
     for (let v = r.max; v >= r.min; v--) values.push(v);
     control = `<div class="labelled" role="radiogroup">${values.map((v, i) => `
       <label class="opt"><input type="radio" name="${name}" value="${v}" ${value === v ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${esc(labels[i])}</span></label>`).join('')}</div>`;
+  } else if (r.type === 'choice') {
+    control = `<div class="labelled" role="radiogroup">${r.options.map((o) => `
+      <label class="opt"><input type="radio" name="${name}" value="${o.value}" ${value === o.value ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${esc(tx(o.label))}</span></label>`).join('')}</div>`;
   } else if (r.type === 'yesno') {
     control = `<div class="yesno" role="radiogroup">
       <label class="pill"><input type="radio" name="${name}" value="1" ${value === 1 ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${t().yes}</span></label>
@@ -99,29 +103,33 @@ function renderItem(it, value, ro) {
   } else if (r.type === 'number') {
     control = `<div class="num"><input type="number" inputmode="numeric" name="${name}" min="${r.min}" max="${r.max}" step="1" value="${value ?? ''}" ${ro ? 'disabled' : ''}><span>${esc(tx(r.unit))}</span></div>`;
   }
-  const show = it.showIf ? `data-showif="${esc(it.showIf.item)}" data-equals="${it.showIf.equals}"` : '';
-  return `<fieldset class="item" data-item="${name}" ${show}><legend>${esc(tx(it.text))}</legend>${control}</fieldset>`;
+  const show = it.showIf
+    ? `data-showif="${esc(it.showIf.item)}" ${'equals' in it.showIf ? `data-equals="${it.showIf.equals}"` : `data-min="${it.showIf.min}"`}`
+    : '';
+  const text = tx(it.text).replace('{yesterday}', ctx.yesterday || '');
+  return `<fieldset class="item" data-item="${name}" ${show}><legend>${esc(text)}</legend>${control}</fieldset>`;
 }
 
-function renderSections(kind, answers = {}, ro = false) {
-  return QUESTIONNAIRES[kind].sections.map((s) => `
+function renderSections(kind, answers = {}, ro = false, slot, ctx = {}) {
+  return sectionsOf(kind, slot).map((s) => `
     <section class="card qsec">
       <h3>${esc(tx(s.title))}</h3>
       ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}
-      ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro)).join('')}
+      ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('')}
     </section>`).join('');
 }
 
 function applyShowIf(form) {
   form.querySelectorAll('[data-showif]').forEach((fs) => {
     const src = form.querySelector(`input[name="${fs.dataset.showif}"]:checked`);
-    fs.hidden = !(src && Number(src.value) === Number(fs.dataset.equals));
+    const v = src ? Number(src.value) : null;
+    fs.hidden = v === null || ('equals' in fs.dataset ? v !== Number(fs.dataset.equals) : v < Number(fs.dataset.min));
   });
 }
 
-function collect(form, kind) {
+function collect(form, kind, slot = form.dataset.slot) {
   const answers = {};
-  for (const it of itemsOf(kind)) {
+  for (const it of itemsOf(kind, slot)) {
     const checked = form.querySelector(`input[name="${it.id}"]:checked`);
     const num = form.querySelector(`input[type="number"][name="${it.id}"]`);
     if (checked) answers[it.id] = Number(checked.value);
@@ -139,7 +147,7 @@ function markMissing(form, missing) {
 // Keep unsaved answers when the language is switched
 function saveDraft() {
   const form = root.querySelector('form[data-kind]');
-  if (!form) return;
+  if (!form || form.hidden) return;
   const extra = {};
   form.querySelectorAll('[data-keep]').forEach((el) => { extra[el.name] = el.value; });
   state.draft[location.hash] = { answers: collect(form, form.dataset.kind), extra };
@@ -229,7 +237,7 @@ function viewBaseline() {
   const ex = d.extra;
   shell(`
     <div class="intro"><p class="eyebrow">${t().study}</p><h1>${t().welcomeTitle}</h1><p class="muted">${t().welcomeText}</p></div>
-    <form data-kind="Q1" id="f" novalidate>
+    <form data-kind="Q1" data-slot="baseline" id="f" novalidate>
       <section class="card qsec">
         <h3>${t().yourStay}</h3>
         <label>${t().clinic}<select name="clinic" data-keep required><option value="">${t().chooseClinic}</option>
@@ -239,7 +247,7 @@ function viewBaseline() {
           <label>${t().departure}<input type="date" name="departure_date" data-keep value="${esc(ex.departure_date || '')}" required></label>
         </div>
       </section>
-      ${renderSections('Q1', d.answers)}
+      ${renderSections('Q1', d.answers, false, 'baseline')}
       ${saveBar()}
     </form>`);
   wireForm('Q1', async (answers, form) => {
@@ -284,7 +292,32 @@ function wireForm(kind, submit) {
 function slotLabel(i) {
   if (i.slot === 'baseline') return [t().baselineLabel, t().baselineSub];
   if (i.slot === 'end') return [t().endLabel, `${t().endSub} · ${fmtDate(i.open_date)}`];
-  return [t().dayLabel(i.day_number), `${fmtDate(i.open_date)} · ${t().dailySub}`];
+  const p = isMeditation() ? practiceFor(i.day_number, totalDays()) : null;
+  return [t().dayTitle(i.day_number, p ? tx(p.title) : ''), `${fmtDate(i.open_date)} · ${t().dailySub}`];
+}
+
+const isMeditation = () => (state.me?.stay?.arm || 'meditation') === 'meditation';
+const totalDays = () => (state.me?.timeline || []).filter((x) => x.kind === 'Q2').length;
+const prevDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join('');
+
+function practiceBlock(dayNumber) {
+  const p = practiceFor(dayNumber, totalDays());
+  if (!p) return `<div class="card note">${esc(t().programmeEnded)}</div>`;
+  return `
+    <article class="practice">
+      <p class="eyebrow">${t().todaysPractice}</p>
+      <h2 class="theme">${esc(tx(p.theme))}</h2>
+      <blockquote>${paras(tx(p.quote))}<footer>— ${esc(t().quoteBy)}</footer></blockquote>
+      <section class="exercise">
+        <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.exercise.minutes)}</span></p>
+        <h3>${esc(tx(p.exercise.title))}</h3>
+        ${paras(tx(p.exercise.steps))}
+        <p class="timer-tip">${esc(t().timerTip(p.exercise.minutes))}</p>
+      </section>
+      ${p.exercise.also ? `<p class="also">${esc(tx(p.exercise.also))}</p>` : ''}
+      <p class="phone-away">${esc(t().phoneAway)}</p>
+    </article>`;
 }
 
 function viewJourney() {
@@ -296,7 +329,7 @@ function viewJourney() {
     const [label, sub] = slotLabel(i);
     let meta = '';
     let action = '';
-    if (i.status === 'open') { meta = t().openUntil(fmtDate(i.close_date)); action = `<a class="btn sm" href="#/q/${i.id}">${t().start}</a>`; }
+    if (i.status === 'open') { meta = t().openUntil(fmtDate(i.close_date)); action = `<a class="btn sm" href="#/q/${i.id}">${i.kind === 'Q2' ? t().open : t().start}</a>`; }
     if (i.status === 'locked') meta = t().opensOn(fmtDate(i.open_date), String(openHour).padStart(2, '0'));
     if (i.status === 'done') action = `<a class="link small" href="#/q/${i.id}">${t().view}</a>`;
     return `
@@ -316,6 +349,7 @@ function viewJourney() {
       ${stay ? `<p class="muted">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
       <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
       <p class="small muted">${t().progress(done, timeline.length)}</p>
+      <div class="programme-intro"><strong>${isMeditation() ? t().groupMedTitle : t().groupCtlTitle}</strong><p>${esc(isMeditation() ? t().programmeIntro : t().groupCtlText)}</p></div>
     </div>
     ${done === timeline.length ? `<div class="card done-all">${t().allDone}</div>` : ''}
     <ol class="timeline">${items}</ol>`);
@@ -324,19 +358,36 @@ function viewJourney() {
 async function viewQuestionnaire(id) {
   let inst;
   try { inst = await api(`/instances/${id}`); } catch { go('#/journey'); return; }
+  if (inst.status === 'locked') { go('#/journey'); return; }
   const [label, sub] = slotLabel(inst);
   const ro = inst.status !== 'open';
   const intro = inst.kind === 'Q2' ? t().dailyIntro : inst.slot === 'end' ? t().endIntro : '';
   const d = state.draft[location.hash] || { answers: {} };
+  const daily = inst.kind === 'Q2';
+  const med = daily && isMeditation();
+  const p = med ? practiceFor(inst.day_number, totalDays()) : null;
+  const head = daily
+    ? `<div class="intro"><p class="eyebrow">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1></div>
+       ${med ? practiceBlock(inst.day_number) : ''}
+       <div class="evening"><h2>${t().eveningJournal}</h2>
+         ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${med ? `${esc(t().eveningHint)} ` : ''}${esc(intro)}</p>`}</div>`
+    : `<div class="intro"><p class="eyebrow">${esc(sub)}</p><h1>${esc(label)}</h1>
+       ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
   shell(`
     <p><a href="#/journey" class="link small">${t().backToJourney}</a></p>
-    <div class="intro"><p class="eyebrow">${esc(sub)}</p><h1>${esc(label)}</h1>
-      ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>
-    <form data-kind="${inst.kind}" id="f" novalidate class="${ro ? 'ro' : ''}">
+    ${head}
+    ${med && !state.draft[location.hash] ? `<button class="btn ghost" id="reveal">${ro ? t().showAnswers : t().openJournal}</button>` : ''}
+    <form data-kind="${inst.kind}" data-slot="${inst.slot}" id="f" novalidate class="${ro ? 'ro' : ''}" ${med && !state.draft[location.hash] ? 'hidden' : ''}>
       ${ro && inst.answers ? `<p class="muted small">${t().readOnly}</p>` : ''}
-      ${renderSections(inst.kind, ro ? inst.answers || {} : d.answers, ro)}
+      ${renderSections(inst.kind, ro ? inst.answers || {} : d.answers, ro, inst.slot, { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) })}
       ${ro ? '' : saveBar()}
     </form>`);
+  root.querySelector('#reveal')?.addEventListener('click', (e) => {
+    e.currentTarget.remove();
+    const f = root.querySelector('#f');
+    f.hidden = false;
+    f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   if (ro) { applyShowIf(root.querySelector('#f')); return; }
   wireForm(inst.kind, (answers) => api(`/instances/${id}`, { answers }));
 }

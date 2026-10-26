@@ -9,6 +9,7 @@
   --accent-soft: #e6efe9; --done: #005238;
   --open: #ffc954; --open-soft: #fff4d6; --open-ink: #6b4a00;
   --missed: #a3a2b5; --danger: #963417; --sand: #f4f1e5;
+  --mid-blue: #3859b3; --blue-tint: #edf1fb; --blue-line: #d9e1f5; --orange: #c3541c; --orange-tint: #fbefe8;
   --radius: 16px; --shadow: 0 1px 2px rgba(0, 0, 81, .04), 0 8px 28px rgba(0, 0, 81, .05);
 }
 * { box-sizing: border-box; }
@@ -95,14 +96,8 @@ small { display: block; margin-top: 4px; font-size: 13px; }
 @media (max-width: 480px) { .step { flex-wrap: wrap; } .step-action { width: 100%; } .step-action .btn { width: 100%; } }
 
 /* questionnaire */
-.qsec h3 { margin-bottom: 0; }
 .prompt { color: var(--muted); font-style: italic; margin: 2px 0 6px; }
-.item { border: 0; padding: 16px 0 6px; margin: 0; border-top: 1px solid var(--line); min-width: 0; }
-.qsec h3 + .item, .prompt + .item { border-top: 0; padding-top: 8px; }
-.item legend { padding: 0; font-size: 17px; margin-bottom: 10px; float: left; width: 100%; }
 .item legend + * { clear: both; }
-.item.missing legend { color: var(--danger); }
-.item.missing .scale, .item.missing .labelled, .item.missing .yesno, .item.missing .num input { box-shadow: 0 0 0 2px #e8c2b3; border-radius: 12px; }
 .item[hidden] { display: none; }
 
 .scale { display: grid; gap: 6px; }
@@ -112,7 +107,7 @@ small { display: block; margin-top: 4px; font-size: 13px; }
 .pt input, .opt input, .pill input { position: absolute; opacity: 0; pointer-events: none; }
 .pt span { display: flex; align-items: center; justify-content: center; height: 46px; border: 1px solid var(--line); border-radius: 12px; background: #fffefa; font-size: 16px; transition: background .15s, border-color .15s; }
 .scale.n11 .pt span { height: 42px; font-size: 15px; border-radius: 10px; }
-.pt input:checked + span, .opt input:checked + span, .pill input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pt input:checked + span, .opt input:checked + span, .pill input:checked + span { background: var(--mid-blue); border-color: var(--mid-blue); color: #fff; }
 .pt input:focus-visible + span, .opt input:focus-visible + span, .pill input:focus-visible + span { outline: 2px solid var(--light-blue); outline-offset: 2px; }
 .anchors { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); margin-top: 6px; }
 .anchors span:last-child { text-align: right; }
@@ -156,3 +151,23 @@ form[hidden] { display: none; }
 .also { margin: -8px 0 22px; padding: 0 2px; font-size: 15.5px; color: var(--muted); }
 .programme-intro strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 2px; }
 .programme-intro p { margin: 0; }
+
+/* ---------- questionnaire blocks (CI secondary colours: Mid Blue, Light Blue, Orange) ---------- */
+form[data-kind] { counter-reset: q; }
+.qsec { margin: 30px 0 6px; }
+.qhead { background: var(--blue-tint); border-left: 4px solid var(--mid-blue); border-radius: 14px; padding: 14px 18px; margin-bottom: 12px; }
+.qhead h3 { margin: 0; font-size: 19px; color: var(--ink); }
+.qhead .prompt { margin: 4px 0 0; color: var(--mid-blue); font-style: italic; }
+.item { counter-increment: q; background: var(--card); border: 1px solid var(--blue-line); border-left: 4px solid var(--light-blue);
+  border-radius: 14px; padding: 16px 16px 14px; margin: 0 0 12px; min-width: 0; box-shadow: 0 1px 2px rgba(0, 0, 81, .03); transition: border-color .2s, background .2s; }
+.item legend { float: left; width: 100%; padding: 0; margin-bottom: 12px; font-size: 17px; font-weight: 500; color: var(--ink); display: flex; gap: 10px; align-items: flex-start; }
+.item .qn::before { content: counter(q); display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 26px; height: 26px; border-radius: 50%;
+  background: var(--blue-tint); color: var(--mid-blue); font-size: 13px; font-weight: 700; margin-top: 1px; }
+.item.answered { border-left-color: var(--mid-blue); }
+.item.answered .qn::before { background: var(--mid-blue); color: #fff; }
+.item.missing { border-color: #efc6b2; border-left-color: var(--orange); background: var(--orange-tint); }
+.item.missing legend { color: var(--orange); }
+.item.missing .qn::before { background: var(--orange); color: #fff; }
+.item .anchors, .item .labelled, .item .scale, .item .yesno, .item .num { clear: both; }
+.stay { margin-top: 8px; }
+form.ro .item { border-left-color: var(--line); }

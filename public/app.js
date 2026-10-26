@@ -1,6 +1,6 @@
-import { UI, LANG_LABELS, LOCALES } from './i18n.js';
-import { CLINICS, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js';
-import { practiceFor } from '/shared/programme.js';
+import { UI, LANG_LABELS, LOCALES } from './i18n.js?v=__V__';
+import { CLINICS, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js?v=__V__';
+import { practiceFor } from '/shared/programme.js?v=__V__';
 
 // ---------- state ----------
 const store = {
@@ -107,14 +107,15 @@ function renderItem(it, value, ro, ctx = {}) {
     ? `data-showif="${esc(it.showIf.item)}" ${'equals' in it.showIf ? `data-equals="${it.showIf.equals}"` : `data-min="${it.showIf.min}"`}`
     : '';
   const text = tx(it.text).replace('{yesterday}', ctx.yesterday || '');
-  return `<fieldset class="item" data-item="${name}" ${show}><legend>${esc(text)}</legend>${control}</fieldset>`;
+  const answered = value !== undefined && value !== null && value !== '';
+  return `<fieldset class="item ${answered ? 'answered' : ''}" data-item="${name}" ${show}><legend><span class="qn" aria-hidden="true"></span>${esc(text)}</legend>${control}</fieldset>`;
 }
 
 function renderSections(kind, answers = {}, ro = false, slot, ctx = {}) {
   return sectionsOf(kind, slot).map((s) => `
-    <section class="card qsec">
-      <h3>${esc(tx(s.title))}</h3>
-      ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}
+    <section class="qsec">
+      <div class="qhead"><h3>${esc(tx(s.title))}</h3>
+      ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}</div>
       ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('')}
     </section>`).join('');
 }
@@ -238,7 +239,7 @@ function viewBaseline() {
   shell(`
     <div class="intro"><p class="eyebrow">${t().study}</p><h1>${t().welcomeTitle}</h1><p class="muted">${t().welcomeText}</p></div>
     <form data-kind="Q1" data-slot="baseline" id="f" novalidate>
-      <section class="card qsec">
+      <section class="card stay">
         <h3>${t().yourStay}</h3>
         <label>${t().clinic}<select name="clinic" data-keep required><option value="">${t().chooseClinic}</option>
           ${CLINICS.map((c) => `<option value="${c.id}" ${ex.clinic === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>
@@ -263,10 +264,14 @@ const saveBar = () => `
 function wireForm(kind, submit) {
   const form = root.querySelector('#f');
   applyShowIf(form);
-  form.addEventListener('change', (e) => {
-    applyShowIf(form);
-    e.target.closest('.item')?.classList.remove('missing');
-  });
+  const markAnswered = (e) => {
+    const item = e.target.closest('.item');
+    if (!item) return;
+    item.classList.remove('missing');
+    item.classList.toggle('answered', e.target.type === 'number' ? e.target.value !== '' : true);
+  };
+  form.addEventListener('change', (e) => { applyShowIf(form); markAnswered(e); });
+  form.addEventListener('input', (e) => { if (e.target.type === 'number') markAnswered(e); });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = form.querySelector('#save');

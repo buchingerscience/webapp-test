@@ -10,6 +10,7 @@ import { rebuildSchedule, MAX_STAY_DAYS } from './src/schedule.js';
 import { sendResetEmail, smtpConfigured, APP_URL } from './src/mailer.js';
 import { startScheduler, tick } from './src/scheduler.js';
 import { buildWorkbook } from './src/export.js';
+import { allocate } from './src/randomise.js';
 import { validateAnswers, LANGS, CLINICS } from './shared/questionnaires.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -84,7 +85,7 @@ function requireAdmin(req, res, next) {
 
 function journey(userId) {
   const now = localNow();
-  const stay = db.prepare('SELECT clinic, arrival_date, departure_date FROM stays WHERE user_id = ?').get(userId) || null;
+  const stay = db.prepare('SELECT clinic, arrival_date, departure_date, arm FROM stays WHERE user_id = ?').get(userId) || null;
   const rows = db.prepare(`SELECT id, kind, slot, day_number, open_date, close_date, completed_at FROM instances
                            WHERE user_id = ? ORDER BY CASE slot WHEN 'baseline' THEN 0 WHEN 'end' THEN 2 ELSE 1 END, day_number`).all(userId);
   return { stay, timeline: rows.map((r) => ({ ...r, status: statusOf(r, now) })), today: now.date, openHour: OPEN_HOUR };
@@ -164,12 +165,15 @@ app.post('/api/baseline', requireUser, (req, res) => {
   if (!isDate(a) || !isDate(d)) return fail(res, 400, 'invalid_dates');
   const n = daysBetween(a, d);
   if (n < 1 || n > MAX_STAY_DAYS) return fail(res, 400, 'invalid_dates');
-  const v = validateAnswers('Q1', answers);
+  const v = validateAnswers('Q1', answers, 'baseline');
   if (!v.ok) return res.status(400).json({ error: 'incomplete', missing: v.errors });
 
   const today = localNow().date;
   db.transaction(() => {
-    db.prepare('INSERT INTO stays (user_id, clinic, arrival_date, departure_date) VALUES (?, ?, ?, ?)').run(req.user.id, clinic, a, d);
+    // Randomise only after the baseline answers are validated (they cannot be influenced by the arm)
+    const arm = allocate(req.user.id, clinic);
+    db.prepare('INSERT INTO stays (user_id, clinic, arrival_date, departure_date, arm, allocated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(req.user.id, clinic, a, d, arm, nowIso());
     db.prepare(`INSERT INTO instances (user_id, kind, slot, open_date, close_date, email_status, completed_at, answers_json)
                 VALUES (?, 'Q1', 'baseline', ?, ?, 'skipped', ?, ?)`).run(req.user.id, today, today, nowIso(), JSON.stringify(v.clean));
     rebuildSchedule(req.user.id, a, d);
@@ -192,7 +196,7 @@ app.post('/api/instances/:id', requireUser, (req, res) => {
   if (!i) return fail(res, 404, 'not_found');
   const status = statusOf(i);
   if (status !== 'open') return fail(res, 409, `not_open_${status}`);
-  const v = validateAnswers(i.kind, req.body?.answers);
+  const v = validateAnswers(i.kind, req.body?.answers, i.slot);
   if (!v.ok) return res.status(400).json({ error: 'incomplete', missing: v.errors });
   const r = db.prepare('UPDATE instances SET completed_at = ?, answers_json = ? WHERE id = ? AND completed_at IS NULL').run(nowIso(), JSON.stringify(v.clean), i.id);
   if (!r.changes) return fail(res, 409, 'not_open_done');
@@ -212,7 +216,7 @@ app.post('/api/admin/login', limit(10, 15 * 60000), (req, res) => {
 
 app.get('/api/admin/overview', requireAdmin, (req, res) => {
   const now = localNow();
-  const users = db.prepare(`SELECT u.id, u.participant_code, u.email, u.language, u.created_at, s.clinic, s.arrival_date, s.departure_date
+  const users = db.prepare(`SELECT u.id, u.participant_code, u.email, u.language, u.created_at, s.clinic, s.arrival_date, s.departure_date, s.arm
                             FROM users u LEFT JOIN stays s ON s.user_id = u.id ORDER BY u.id DESC`).all();
   const inst = db.prepare('SELECT user_id, open_date, close_date, completed_at FROM instances').all();
   const per = {};
@@ -267,8 +271,25 @@ app.post('/api/admin/run-scheduler', requireAdmin, async (req, res) => {
 
 // ---------- static ----------
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
-app.use('/shared', express.static(path.resolve('shared'), { maxAge: 0 }));
-app.use(express.static(path.resolve('public'), { maxAge: 0, extensions: ['html'] }));
+// Every deploy gets a new version stamp. HTML/JS files are served with "?v=__V__" replaced by it,
+// so browsers always load matching files after an update (no stale mix of old and new scripts).
+const BUILD = process.env.BUILD_ID || Date.now().toString(36);
+function versioned(dir, aliases = {}) {
+  const root = path.resolve(dir);
+  return (req, res, next) => {
+    const p = aliases[req.path] || req.path;
+    if (!/\.(js|html)$/.test(p)) return next();
+    const file = path.join(root, path.normalize(p));
+    if (!file.startsWith(root + path.sep)) return next();
+    fs.readFile(file, 'utf8', (err, text) => {
+      if (err) return next();
+      res.type(path.extname(file)).set('Cache-Control', 'no-cache').send(text.replaceAll('__V__', BUILD));
+    });
+  };
+}
+const noCache = { setHeaders: (res) => res.set('Cache-Control', 'no-cache') };
+app.use('/shared', versioned('shared'), express.static(path.resolve('shared'), noCache));
+app.use(versioned('public', { '/': '/index.html', '/admin': '/admin.html' }), express.static(path.resolve('public'), { ...noCache, extensions: ['html'] }));
 
 app.listen(PORT, () => {
   console.log(`Inner Calm listening on ${PORT} · db ${DB_PATH} · SMTP ${smtpConfigured ? 'on' : 'OFF (emails only logged)'} · ${STUDY_TZ} ${OPEN_HOUR}:00`);

@@ -50,11 +50,11 @@ function shell(inner, { narrow = false } = {}) {
   const langBtns = LANGS.map((l) => `<button class="lang ${l === state.lang ? 'on' : ''}" data-lang="${l}" aria-pressed="${l === state.lang}">${LANG_LABELS[l]}</button>`).join('');
   root.innerHTML = `
     <header class="top">
-      <a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo_bw.svg" alt="Buchinger Wilhelmi"></a>
       <div class="top-right">
         <nav class="langs" aria-label="Language">${langBtns}</nav>
         ${state.me ? `<button class="link small" id="logout">${t().logout}</button>` : ''}
       </div>
+      <a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo.svg" alt="Buchinger"></a>
     </header>
     <main class="${narrow ? 'narrow' : ''}">${inner}</main>`;
   root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));

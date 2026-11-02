@@ -76,12 +76,15 @@ const T = {
 const t = (lang) => T[lang] || T.en;
 
 function layout(bodyHtml, buttonLabel, link, footer) {
-  return `<!doctype html><html><body style="margin:0;background:#fcfaf2;font-family:Helvetica,Arial,sans-serif;color:#000051">
+  // Email clients can't load the brand fonts, so the CI system fonts stand in: Helvetica for Neuf, Palatino for Arizona Flare.
+  const neuf = 'Helvetica,Arial,sans-serif', arizona = "Palatino,'Palatino Linotype','Book Antiqua',Georgia,serif";
+  return `<!doctype html><html><body style="margin:0;background:#fcfaf2;font-family:${arizona};color:#000051">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+  <img src="${APP_URL}/logo-email.png" width="170" alt="BUCHINGER" style="display:block;margin:0 auto 24px;border:0;width:170px;height:auto">
   <table role="presentation" width="100%" style="max-width:520px;background:#ffffff;border-radius:14px" cellpadding="0" cellspacing="0">
-  <tr><td style="padding:32px 32px 8px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#3859b3">Inner Calm</td></tr>
-  <tr><td style="padding:8px 32px 8px;font-size:16px;line-height:1.6">${bodyHtml}</td></tr>
-  <tr><td style="padding:24px 32px 32px"><a href="${link}" style="display:inline-block;background:#000051;color:#fcfaf2;text-decoration:none;padding:13px 22px;border-radius:999px;font-size:15px">${buttonLabel}</a></td></tr>
+  <tr><td style="padding:32px 32px 8px;font-family:${neuf};font-size:11px;font-weight:bold;letter-spacing:.26em;text-transform:uppercase;color:#3859b3">Inner Calm</td></tr>
+  <tr><td style="padding:8px 32px 8px;font-size:17px;line-height:1.6">${bodyHtml}</td></tr>
+  <tr><td style="padding:24px 32px 32px"><a href="${link}" style="display:inline-block;background:#000051;color:#fcfaf2;text-decoration:none;padding:13px 22px;border-radius:999px;font-family:${neuf};font-size:13px;letter-spacing:.14em;text-transform:uppercase">${buttonLabel}</a></td></tr>
   </table>
   <p style="font-size:12px;color:#5d5d82;margin:16px 0 0">${footer}</p>
   </td></tr></table></body></html>`;

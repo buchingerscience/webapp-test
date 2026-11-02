@@ -19,5 +19,5 @@ jobs:
             set -e
             cd /var/www/webapp-test
             git pull origin main
-            docker compose up -d --build
+            docker compose up -d --build --force-recreate
             docker compose ps

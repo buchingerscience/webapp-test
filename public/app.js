@@ -46,15 +46,29 @@ function toast(msg) {
 }
 
 // ---------- layout ----------
-function shell(inner, { narrow = false } = {}) {
+// Line art from the Buchinger Times: three overlapping circles, and a circle with four arrows pointing inward
+const CIRCLES = `<svg class="circles" viewBox="0 0 452 246" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5">
+  <circle cx="123" cy="123" r="121"/><circle cx="242" cy="123" r="96"/><circle cx="378" cy="123" r="71"/></g></svg>`;
+const INWARD = `<svg class="inward-art" viewBox="0 0 400 400" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5">
+  <circle cx="200" cy="200" r="150"/>
+  <path d="M8 8 L58 58 M58 40 V58 H40"/><path d="M392 8 L342 58 M342 40 V58 H360"/>
+  <path d="M8 392 L58 342 M58 360 V342 H40"/><path d="M392 392 L342 342 M342 360 V342 H360"/></g></svg>`;
+
+function shell(inner, { narrow = false, hero = '', cover = false } = {}) {
   const langBtns = LANGS.map((l) => `<button class="lang ${l === state.lang ? 'on' : ''}" data-lang="${l}" aria-pressed="${l === state.lang}">${LANG_LABELS[l]}</button>`).join('');
+  const logo = `<a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo-light.svg" alt="Buchinger"></a>`;
   root.innerHTML = `
-    <header class="top">
-      <div class="top-right">
-        <nav class="langs" aria-label="Language">${langBtns}</nav>
-        ${state.me ? `<button class="link small" id="logout">${t().logout}</button>` : ''}
+    <header class="masthead ${cover ? 'cover' : ''}">
+      <div class="mast-bar">
+        <span class="mast-label">${t().study}</span>
+        <div class="mast-right">
+          <nav class="langs" aria-label="Language">${langBtns}</nav>
+          ${state.me ? `<button class="link" id="logout">${t().logout}</button>` : ''}
+        </div>
       </div>
-      <a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo.svg" alt="Buchinger"></a>
+      ${cover ? '' : logo}
+      <div class="mast-inner">${hero}</div>
+      ${cover ? logo : ''}
     </header>
     <main class="${narrow ? 'narrow' : ''}">${inner}</main>`;
   root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
@@ -157,9 +171,13 @@ function saveDraft() {
 // ---------- views ----------
 function authCard(title, body, footer = '') {
   shell(`
-    <div class="intro"><p class="eyebrow">${t().study}</p><h1>${title}</h1><p class="muted">${t().tagline}</p></div>
-    <div class="card auth">${body}</div>
-    ${footer ? `<p class="center muted">${footer}</p>` : ''}`, { narrow: true });
+    <div class="card auth"><h2 class="card-title">${title}</h2>${body}</div>
+    ${footer ? `<p class="center muted">${footer}</p>` : ''}`, {
+    narrow: true,
+    cover: true,
+    hero: `<figure class="cover-photo"><img src="/cover.jpg" alt="" width="640" height="758"></figure>
+      <h1 class="cover-title">${t().study}</h1><p class="kicker">${t().tagline}</p>`,
+  });
 }
 
 function viewLogin() {
@@ -237,7 +255,6 @@ function viewBaseline() {
   const d = state.draft[location.hash] || { answers: {}, extra: {} };
   const ex = d.extra;
   shell(`
-    <div class="intro"><p class="eyebrow">${t().study}</p><h1>${t().welcomeTitle}</h1><p class="muted">${t().welcomeText}</p></div>
     <form data-kind="Q1" data-slot="baseline" id="f" novalidate>
       <section class="card stay">
         <h3>${t().yourStay}</h3>
@@ -250,7 +267,7 @@ function viewBaseline() {
       </section>
       ${renderSections('Q1', d.answers, false, 'baseline')}
       ${saveBar()}
-    </form>`);
+    </form>`, { hero: `<p class="kicker">${t().kicker}</p><h1>${t().welcomeTitle}</h1><p class="lede">${t().welcomeText}</p>` });
   wireForm('Q1', async (answers, form) => {
     const f = new FormData(form);
     return api('/baseline', { clinic: f.get('clinic'), arrival_date: f.get('arrival_date'), departure_date: f.get('departure_date'), answers });
@@ -310,9 +327,10 @@ function practiceBlock(dayNumber) {
   if (!p) return `<div class="card note">${esc(t().programmeEnded)}</div>`;
   return `
     <article class="practice">
-      <p class="eyebrow">${t().todaysPractice}</p>
+      <p class="eyebrow center">${t().todaysPractice}</p>
       <h2 class="theme">${esc(tx(p.theme))}</h2>
-      <blockquote>${paras(tx(p.quote))}<footer>— ${esc(t().quoteBy)}</footer></blockquote>
+      <blockquote class="pull">${paras(tx(p.quote))}
+        <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>
       <section class="exercise">
         <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.exercise.minutes)}</span></p>
         <h3>${esc(tx(p.exercise.title))}</h3>
@@ -320,7 +338,7 @@ function practiceBlock(dayNumber) {
         <p class="timer-tip">${esc(t().timerTip(p.exercise.minutes))}</p>
       </section>
       ${p.exercise.also ? `<p class="also">${esc(tx(p.exercise.also))}</p>` : ''}
-      <p class="phone-away">${esc(t().phoneAway)}</p>
+      <div class="inward"><div class="inward-box">${INWARD}<p>${esc(t().phoneAway)}</p></div></div>
     </article>`;
 }
 
@@ -348,15 +366,16 @@ function viewJourney() {
       </li>`;
   }).join('');
   shell(`
-    <div class="intro">
-      <p class="eyebrow">${t().study}</p><h1>${t().journeyTitle}</h1>
-      ${stay ? `<p class="muted">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
-      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
-      <p class="small muted">${t().progress(done, timeline.length)}</p>
-      <div class="programme-intro"><p>${esc(t().programmeIntro)}</p></div>
-    </div>
     ${done === timeline.length ? `<div class="card done-all">${t().allDone}</div>` : ''}
-    <ol class="timeline">${items}</ol>`);
+    <ol class="timeline">${items}</ol>`, {
+    hero: `
+      ${stay ? `<p class="kicker">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
+      <h1>${t().journeyTitle}</h1>
+      ${CIRCLES}
+      <p class="lede">${esc(t().programmeIntro)}</p>
+      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
+      <p class="kicker">${t().progress(done, timeline.length)}</p>`,
+  });
 }
 
 async function viewQuestionnaire(id) {
@@ -370,22 +389,23 @@ async function viewQuestionnaire(id) {
   const daily = inst.kind === 'Q2';
   const med = daily;
   const p = med ? practiceFor(inst.day_number, totalDays()) : null;
+  const hero = daily
+    ? `<p class="kicker">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>`
+    : `<p class="kicker">${esc(sub)}</p><h1>${esc(label)}</h1>`;
   const head = daily
-    ? `<div class="intro"><p class="eyebrow">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1></div>
-       ${med ? practiceBlock(inst.day_number) : ''}
+    ? `${med ? practiceBlock(inst.day_number) : ''}
        <div class="evening"><h2>${t().eveningJournal}</h2>
          ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${med ? `${esc(t().eveningHint)} ` : ''}${esc(intro)}</p>`}</div>`
-    : `<div class="intro"><p class="eyebrow">${esc(sub)}</p><h1>${esc(label)}</h1>
-       ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
+    : `<div class="intro">${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
   shell(`
-    <p><a href="#/journey" class="link small">${t().backToJourney}</a></p>
+    <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>
     ${head}
     ${med && !state.draft[location.hash] ? `<button class="btn ghost" id="reveal">${ro ? t().showAnswers : t().openJournal}</button>` : ''}
     <form data-kind="${inst.kind}" data-slot="${inst.slot}" id="f" novalidate class="${ro ? 'ro' : ''}" ${med && !state.draft[location.hash] ? 'hidden' : ''}>
       ${ro && inst.answers ? `<p class="muted small">${t().readOnly}</p>` : ''}
       ${renderSections(inst.kind, ro ? inst.answers || {} : d.answers, ro, inst.slot, { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) })}
       ${ro ? '' : saveBar()}
-    </form>`);
+    </form>`, { hero });
   root.querySelector('#reveal')?.addEventListener('click', (e) => {
     e.currentTarget.remove();
     const f = root.querySelector('#f');

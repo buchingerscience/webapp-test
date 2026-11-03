@@ -1,7 +1,7 @@
 # Inner Calm — study web app
 
 A small web app for the **Inner Calm** pilot (meditation during prolonged fasting, Buchinger Wilhelmi).
-Questionnaires follow the study brief *"Flywheel 1 brief on meditation"*, section 18.2. Colours follow the Buchinger Corporate Identity Guidelines (Dark Blue `#000051`, Off-white `#fcfaf2`, secondary colours used sparingly). Typography follows the same guidelines: **Arizona Flare** for headlines and body text, **Neuf** for small titles, section titles and buttons (caps, tracked), and **Edict Display** for quotes only, with Helvetica/Palatino as the fallbacks (also used in emails). The logo (`public/logo.svg`, primary logo with *EST. 1920*) is centred at the top in Dark Blue on Off-white.
+Questionnaires follow the study brief *"Flywheel 1 brief on meditation"*, section 18.2. Colours follow the Buchinger Corporate Identity Guidelines (Dark Blue `#000051`, Off-white `#fcfaf2`, secondary colours used sparingly). Typography follows the same guidelines: **Arizona Flare** for headlines and body text, **Neuf** for small titles, section titles and buttons (caps, tracked), and **Edict Display** for quotes only, with Helvetica/Palatino as the fallbacks (also used in emails). The look follows the *Buchinger Times* (marketing's study newsletter): a full-bleed Mid Blue masthead with the Off-white logo (`public/logo-light.svg`) and centred Arizona Flare caps headlines, the Times cover photo on the login/register screens (`public/cover.jpg`), its line art (three circles; a circle with four inward arrows) and pull quotes on Mid Blue.
 
 Live at **https://test.buchinger-science.com** · Admin at **https://test.buchinger-science.com/admin**
 

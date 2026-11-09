@@ -71,34 +71,44 @@ export async function buildWorkbook() {
       };
     }));
 
-  // 4. Meditation log — one row per (participant, day meditated about).
+  // 4. Meditation log — one row per (participant, day reported on).
   // Q2 of day k reports on day k-1 (day 0 = the day before arrival); the closing Q1 reports on the last day.
+  // snack_band: 0 = none, 1 = 1–2, 2 = 3–5, 3 = 6–10, 4 = more than 10 meditation snacks.
+  // class_*: sessions of the clinic's meditation programme (self-selected; analyse as a covariate).
+  // legacy_*: answers given with the earlier 15–20-minute programme ("Did you meditate yesterday?").
+  const BAND = ['none', '1-2', '3-5', '6-10', '>10'];
   const stays = Object.fromEntries(users.map((u) => [u.id, u]));
   const log = [];
   instances.filter((i) => i.completed_at && (i.kind === 'Q2' || i.slot === 'end')).forEach((i) => {
     const a = JSON.parse(i.answers_json);
-    if (a.meditated_yesterday === undefined || a.meditated_yesterday === null) return;
+    const isNew = typeof a.snacks_yesterday === 'number';
+    const isLegacy = typeof a.meditated_yesterday === 'number';
+    if (!isNew && !isLegacy) return;
     const date = addDays(i.open_date, -1);
     const st = stays[i.user_id];
     const programmeDay = st?.arrival_date ? Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${st.arrival_date}T00:00:00Z`)) / 86400000) + 1 : null;
     log.push({ user_id: i.user_id, participant_code: codeOf[i.user_id], meditation_date: date, programme_day: programmeDay, reported_in: i.slot,
-      meditated: a.meditated_yesterday, minutes: a.meditated_yesterday ? a.meditation_minutes_yesterday : 0 });
+      programme_version: isNew ? 'snacks' : 'legacy_15_20min',
+      snack_band: isNew ? a.snacks_yesterday : null, snacks: isNew ? BAND[a.snacks_yesterday] : null,
+      class_attended: isNew ? a.class_yesterday : null, class_minutes: isNew ? (a.class_yesterday ? a.class_minutes_yesterday : 0) : null,
+      legacy_meditated: isLegacy ? a.meditated_yesterday : null, legacy_minutes: isLegacy ? (a.meditated_yesterday ? a.meditation_minutes_yesterday : 0) : null });
   });
   log.sort((x, y) => (x.user_id - y.user_id) || x.meditation_date.localeCompare(y.meditation_date));
-  sheet(wb, 'meditation_log', ['participant_code', 'meditation_date', 'programme_day', 'reported_in', 'meditated', 'minutes'], log);
+  sheet(wb, 'meditation_log', ['participant_code', 'meditation_date', 'programme_day', 'reported_in', 'programme_version', 'snack_band', 'snacks', 'class_attended', 'class_minutes', 'legacy_meditated', 'legacy_minutes'], log);
 
   // 5. Meditation summary per participant (programme days only = arrival day … day before departure)
   sheet(wb, 'meditation_summary',
-    ['participant_code', 'programme_days', 'days_reported', 'days_meditated', 'days_15min_or_more', 'total_minutes', 'mean_minutes_per_reported_day'],
+    ['participant_code', 'programme_days', 'days_reported', 'days_with_snacks', 'days_3plus_snacks', 'mean_snack_band', 'days_class', 'total_class_minutes'],
     users.filter((u) => u.arrival_date).map((u) => {
       const n = Math.round((new Date(`${u.departure_date}T00:00:00Z`) - new Date(`${u.arrival_date}T00:00:00Z`)) / 86400000);
-      const rows = log.filter((r) => r.user_id === u.id && r.programme_day >= 1 && r.programme_day <= n);
-      const total = rows.reduce((t, r) => t + (r.minutes || 0), 0);
+      const rows = log.filter((r) => r.user_id === u.id && r.programme_day >= 1 && r.programme_day <= n && r.programme_version === 'snacks');
       return {
         participant_code: u.participant_code, programme_days: n, days_reported: rows.length,
-        days_meditated: rows.filter((r) => r.meditated === 1).length,
-        days_15min_or_more: rows.filter((r) => (r.minutes || 0) >= 15).length,
-        total_minutes: total, mean_minutes_per_reported_day: rows.length ? +(total / rows.length).toFixed(1) : null,
+        days_with_snacks: rows.filter((r) => r.snack_band >= 1).length,
+        days_3plus_snacks: rows.filter((r) => r.snack_band >= 2).length,
+        mean_snack_band: rows.length ? +(rows.reduce((t, r) => t + r.snack_band, 0) / rows.length).toFixed(2) : null,
+        days_class: rows.filter((r) => r.class_attended === 1).length,
+        total_class_minutes: rows.reduce((t, r) => t + (r.class_minutes || 0), 0),
       };
     }));
 

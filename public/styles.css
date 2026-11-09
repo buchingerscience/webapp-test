@@ -243,3 +243,28 @@ form.ro .item { border-left-color: var(--line); }
 .evening { text-align: center; margin-top: 34px; }
 .evening h2 { font-size: 26px; }
 .btn.ghost { border-width: 1px; line-height: 1.35; text-align: center; }
+
+/* ---------- meditation snacks (with Gilbert Grimeau) ---------- */
+.practice .reinforce { text-align: center; max-width: 460px; margin: 10px auto 0; font: 400 14.5px/1.55 var(--neuf); color: var(--muted); }
+.practice .snack-repeat { margin-top: 14px !important; padding-top: 12px; border-top: 1px solid #e3dfcf; font: italic 400 16px/1.5 var(--arizona); color: var(--mid-blue); }
+/* timer inside the inward circle */
+.inward .tm-face { position: relative; text-align: center; max-width: 62%; }
+.inward .tm-face p { max-width: none; }
+.inward .tm-clock { font: 400 clamp(44px, 12vw, 58px)/1 var(--arizona); letter-spacing: .02em; margin: 0 0 10px; font-variant-numeric: tabular-nums; }
+.inward .tm-msg { min-height: 1.55em; }
+.inward.running .inward-art { animation: breathe 8s ease-in-out infinite; transform-origin: 50% 50%; }
+@keyframes breathe { 0%, 100% { transform: scale(.94); opacity: .75; } 50% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .inward.running .inward-art { animation: none; } }
+.tm-controls { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 18px; }
+.tm-opts { display: flex; gap: 8px; }
+.tm-opt { border: 1px solid rgba(252, 250, 242, .6); background: transparent; color: var(--bg); border-radius: 999px; padding: 7px 14px; min-height: 40px;
+  font: 600 11.5px var(--neuf); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; }
+.tm-opt.on { background: var(--bg); color: var(--ink); border-color: var(--bg); }
+.inward.running .tm-opt { opacity: .4; cursor: default; }
+.tm-go { background: var(--bg); color: var(--ink); max-width: 240px !important; }
+.inward p.tm-note { max-width: 320px; font-size: 13px; opacity: .8; }
+/* more depth: the clinic's meditation programme */
+.deeper { margin: 0 -22px; padding: 24px 22px 26px; background: var(--sand); text-align: center; }
+.deeper h3 { font: 600 12.5px/1.5 var(--neuf); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); margin: 0 0 8px; }
+.deeper p { max-width: 460px; margin: 0 auto; font-size: 16px; }
+.deeper .credit { margin-top: 16px; font: 400 12.5px/1.5 var(--neuf); color: var(--muted); }

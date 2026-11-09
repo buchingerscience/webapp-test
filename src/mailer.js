@@ -3,7 +3,7 @@
 // (visible in the admin page) — handy for testing before Brevo is set up.
 import nodemailer from 'nodemailer';
 import { db } from './db.js';
-import { practiceFor } from '../shared/programme.js';
+import { practiceFor, minutesText } from '../shared/programme.js';
 
 const { SMTP_HOST, SMTP_PORT = '587', SMTP_USER, SMTP_PASS } = process.env;
 const MAIL_FROM = process.env.MAIL_FROM || 'Inner Calm Study <study@buchinger-science.com>';
@@ -21,9 +21,10 @@ const logStmt = db.prepare(`INSERT INTO email_log (user_id, to_email, type, subj
 // ---------- texts ----------
 const T = {
   en: {
+    reinforcement: 'Reinforcement',
     dailySubject: (n, title) => title ? `Inner Calm · Day ${n} — ${title}` : `Inner Calm · Day ${n}: your daily journal is open`,
     dailyBody: (n, title, min) => title
-      ? `Good morning,<br><br>Your practice for <b>day ${n}</b> is ready: <b>${title}</b> — a ${min}-minute seated meditation.<br><br>Reading it takes about a minute — then put your phone away and meditate. This evening, take 90 seconds for your journal.`
+      ? `Good morning,<br><br>Your meditation snack for <b>day ${n}</b> is ready: <b>${title}</b>, ${min}. Do as many as you can today: every wait is an opportunity.<br><br>This evening, take 90 seconds for your journal.`
       : `Good morning,<br><br>Your journal for <b>day ${n}</b> is now open. Take 90 seconds this evening to answer it — thinking about how your day went.`,
     endSubject: 'Inner Calm · Your closing questionnaire',
     endBody: 'Your stay is coming to an end. Thank you for taking part! One last, slightly longer questionnaire is waiting for you — it helps us understand how your experience has changed.',
@@ -34,9 +35,10 @@ const T = {
     footer: 'Inner Calm study · Buchinger Wilhelmi',
   },
   de: {
+    reinforcement: 'Festigung',
     dailySubject: (n, title) => title ? `Inner Calm · Tag ${n} — ${title}` : `Inner Calm · Tag ${n}: Ihr Tagesjournal ist geöffnet`,
     dailyBody: (n, title, min) => title
-      ? `Guten Morgen,<br><br>Ihre Übung für <b>Tag ${n}</b> ist bereit: <b>${title}</b> – eine Sitzmeditation von ${min} Minuten.<br><br>Das Lesen dauert etwa eine Minute – danach legen Sie Ihr Telefon weg und meditieren. Heute Abend nehmen Sie sich 90 Sekunden für Ihr Journal.`
+      ? `Guten Morgen,<br><br>Ihr Meditationssnack für <b>Tag ${n}</b> ist bereit: <b>${title}</b>, ${min}. Machen Sie heute so viele, wie Sie können: Jedes Warten ist eine Gelegenheit.<br><br>Heute Abend nehmen Sie sich 90 Sekunden für Ihr Journal.`
       : `Guten Morgen,<br><br>Ihr Journal für <b>Tag ${n}</b> ist jetzt geöffnet. Nehmen Sie sich heute Abend 90 Sekunden Zeit und denken Sie dabei an Ihren Tag.`,
     endSubject: 'Inner Calm · Ihr Abschlussfragebogen',
     endBody: 'Ihr Aufenthalt geht zu Ende. Vielen Dank für Ihre Teilnahme! Ein letzter, etwas längerer Fragebogen wartet auf Sie – er hilft uns zu verstehen, wie sich Ihr Erleben verändert hat.',
@@ -47,9 +49,10 @@ const T = {
     footer: 'Inner-Calm-Studie · Buchinger Wilhelmi',
   },
   fr: {
+    reinforcement: 'Consolidation',
     dailySubject: (n, title) => title ? `Inner Calm · Jour ${n} — ${title}` : `Inner Calm · Jour ${n} : votre journal du jour est ouvert`,
     dailyBody: (n, title, min) => title
-      ? `Bonjour,<br><br>Votre pratique du <b>jour ${n}</b> est prête : <b>${title}</b> – une méditation assise de ${min} minutes.<br><br>Sa lecture prend environ une minute – ensuite, posez votre téléphone et méditez. Ce soir, prenez 90 secondes pour votre journal.`
+      ? `Bonjour,<br><br>Votre snack de méditation du <b>jour ${n}</b> est prêt : <b>${title}</b>, ${min}. Faites-en autant que possible aujourd’hui : chaque attente est une occasion.<br><br>Ce soir, prenez 90 secondes pour votre journal.`
       : `Bonjour,<br><br>Votre journal du <b>jour ${n}</b> est maintenant ouvert. Prenez 90 secondes ce soir pour y répondre, en pensant à votre journée.`,
     endSubject: 'Inner Calm · Votre questionnaire de clôture',
     endBody: 'Votre séjour touche à sa fin. Merci pour votre participation ! Un dernier questionnaire, un peu plus long, vous attend – il nous aide à comprendre comment votre expérience a évolué.',
@@ -60,9 +63,10 @@ const T = {
     footer: 'Étude Inner Calm · Buchinger Wilhelmi',
   },
   es: {
+    reinforcement: 'Refuerzo',
     dailySubject: (n, title) => title ? `Inner Calm · Día ${n} — ${title}` : `Inner Calm · Día ${n}: su diario de hoy está abierto`,
     dailyBody: (n, title, min) => title
-      ? `Buenos días:<br><br>Su práctica del <b>día ${n}</b> está lista: <b>${title}</b>, una meditación sentada de ${min} minutos.<br><br>Leerla le llevará un minuto; después, deje el teléfono y medite. Esta noche, dedique 90 segundos a su diario.`
+      ? `Buenos días:<br><br>Su snack de meditación del <b>día ${n}</b> está listo: <b>${title}</b>, ${min}. Haga hoy tantos como pueda: cada espera es una oportunidad.<br><br>Esta noche, dedique 90 segundos a su diario.`
       : `Buenos días:<br><br>Su diario del <b>día ${n}</b> ya está abierto. Dedique 90 segundos esta noche a responderlo, pensando en cómo ha ido su día.`,
     endSubject: 'Inner Calm · Su cuestionario final',
     endBody: 'Su estancia llega a su fin. ¡Gracias por participar! Le espera un último cuestionario, algo más largo, que nos ayuda a entender cómo ha cambiado su experiencia.',
@@ -112,9 +116,10 @@ export function sendQuestionnaireEmail(user, inst) {
   const link = `${APP_URL}/#/journey`;
   const isEnd = inst.slot === 'end';
   const p = isEnd ? null : practiceFor(inst.day_number, inst.total_days || 0);
-  const title = p ? (p.title[user.language] || p.title.en) : '';
+  const base = p ? (p.title[user.language] || p.title.en) : '';
+  const title = p?.reinforcement ? `${L.reinforcement} · ${base}` : base;
   const subject = isEnd ? L.endSubject : L.dailySubject(inst.day_number, title);
-  const body = isEnd ? L.endBody : L.dailyBody(inst.day_number, title, p?.exercise.minutes);
+  const body = isEnd ? L.endBody : L.dailyBody(inst.day_number, title, p ? minutesText(T[user.language] ? user.language : 'en', p.minutes) : '');
   return send({ userId: user.id, to: user.email, type: 'questionnaire', subject, html: layout(body, L.button, link, L.footer), link });
 }
 

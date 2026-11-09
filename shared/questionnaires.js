@@ -38,12 +38,23 @@ const SCALE_0_10_SLEEP = {
 };
 
 // "{yesterday}" is replaced in the app by the calendar date of the day before the questionnaire opened.
+// Meditation snacks (short practices of 1–5 minutes, developed with Gilbert Grimeau) are counted separately
+// from sessions of the clinic's meditation programme, which are longer and self-selected.
+const SNACK_BANDS = {
+  en: ['None', '1–2', '3–5', '6–10', 'More than 10'],
+  de: ['Keinen', '1–2', '3–5', '6–10', 'Mehr als 10'],
+  fr: ['Aucun', '1–2', '3–5', '6–10', 'Plus de 10'],
+  es: ['Ninguno', '1–2', '3–5', '6–10', 'Más de 10'],
+};
 const MEDITATION_YESTERDAY = [
-  { id: 'meditated_yesterday', response: { type: 'yesno' },
-    text: { en: 'Did you meditate yesterday ({yesterday})?', de: 'Haben Sie gestern ({yesterday}) meditiert?', fr: 'Avez-vous médité hier ({yesterday}) ?', es: '¿Meditó ayer ({yesterday})?' } },
-  { id: 'meditation_minutes_yesterday', showIf: { item: 'meditated_yesterday', equals: 1 },
+  { id: 'snacks_yesterday',
+    response: { type: 'choice', options: SNACK_BANDS.en.map((_, i) => ({ value: i, label: Object.fromEntries(Object.entries(SNACK_BANDS).map(([l, arr]) => [l, arr[i]])) })) },
+    text: { en: 'Yesterday ({yesterday}), how many meditation snacks (short meditations of a few minutes) did you take?', de: 'Wie viele Meditationssnacks (kurze Meditationen von wenigen Minuten) haben Sie gestern ({yesterday}) gemacht?', fr: 'Hier ({yesterday}), combien de snacks de méditation (courtes méditations de quelques minutes) avez-vous faits ?', es: 'Ayer ({yesterday}), ¿cuántos snacks de meditación (meditaciones breves de unos minutos) hizo?' } },
+  { id: 'class_yesterday', response: { type: 'yesno' },
+    text: { en: 'Yesterday, did you take part in a session of the clinic’s meditation programme (seminar or guided meditation)?', de: 'Haben Sie gestern an einer Einheit des Meditationsprogramms der Klinik teilgenommen (Seminar oder geführte Meditation)?', fr: 'Hier, avez-vous participé à une séance du programme de méditation de la clinique (séminaire ou méditation guidée) ?', es: 'Ayer, ¿participó en una sesión del programa de meditación de la clínica (seminario o meditación guiada)?' } },
+  { id: 'class_minutes_yesterday', showIf: { item: 'class_yesterday', equals: 1 },
     response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } },
-    text: { en: 'Approximately how many minutes did you meditate in total yesterday?', de: 'Wie viele Minuten haben Sie gestern insgesamt ungefähr meditiert?', fr: 'Combien de minutes environ avez-vous médité au total hier ?', es: '¿Aproximadamente cuántos minutos meditó en total ayer?' } },
+    text: { en: 'Approximately how many minutes in total did those sessions last?', de: 'Wie viele Minuten haben diese Einheiten insgesamt ungefähr gedauert?', fr: 'Combien de minutes environ ces séances ont-elles duré au total ?', es: '¿Aproximadamente cuántos minutos duraron esas sesiones en total?' } },
 ];
 
 const choice = (labels) => ({ type: 'choice', options: labels.en.map((_, i) => ({ value: i, label: Object.fromEntries(Object.entries(labels).map(([l, arr]) => [l, arr[i]])) })) });

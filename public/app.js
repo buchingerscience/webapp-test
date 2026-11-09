@@ -1,6 +1,6 @@
 import { UI, LANG_LABELS, LOCALES } from './i18n.js?v=__V__';
 import { CLINICS, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js?v=__V__';
-import { practiceFor } from '/shared/programme.js?v=__V__';
+import { practiceFor, fillMinutes, TAKE_HOME } from '/shared/programme.js?v=__V__';
 
 // ---------- state ----------
 const store = {
@@ -315,7 +315,8 @@ function slotLabel(i) {
   if (i.slot === 'baseline') return [t().baselineLabel, t().baselineSub];
   if (i.slot === 'end') return [t().endLabel, `${t().endSub} · ${fmtDate(i.open_date)}`];
   const p = practiceFor(i.day_number, totalDays());
-  return [t().dayTitle(i.day_number, p ? tx(p.title) : ''), `${fmtDate(i.open_date)} · ${t().dailySub}`];
+  const title = p ? (p.reinforcement ? `${t().reinforcement} · ${tx(p.title)}` : tx(p.title)) : '';
+  return [t().dayTitle(i.day_number, title), `${fmtDate(i.open_date)} · ${t().dailySub}`];
 }
 
 const totalDays = () => (state.me?.timeline || []).filter((x) => x.kind === 'Q2').length;
@@ -325,21 +326,129 @@ const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join('');
 function practiceBlock(dayNumber) {
   const p = practiceFor(dayNumber, totalDays());
   if (!p) return `<div class="card note">${esc(t().programmeEnded)}</div>`;
+  const steps = (tx(p.snack.steps) || []).map((x) => fillMinutes(x, state.lang, p.minutes));
   return `
     <article class="practice">
-      <p class="eyebrow center">${t().todaysPractice}</p>
+      <p class="eyebrow center">${p.reinforcement ? `${esc(t().reinforcement)} · ` : ''}${esc(t().todaysPractice)}</p>
+      ${p.reinforcement ? `<p class="reinforce">${esc(t().reinforceIntro)}</p>` : ''}
       <h2 class="theme">${esc(tx(p.theme))}</h2>
       <blockquote class="pull">${paras(tx(p.quote))}
         <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>
       <section class="exercise">
-        <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.exercise.minutes)}</span></p>
-        <h3>${esc(tx(p.exercise.title))}</h3>
-        ${paras(tx(p.exercise.steps))}
-        <p class="timer-tip">${esc(t().timerTip(p.exercise.minutes))}</p>
+        <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.minutes)}</span></p>
+        <h3>${esc(tx(p.snack.title))}</h3>
+        ${paras(steps)}
+        <p class="snack-repeat">${esc(t().snackRepeat)}</p>
       </section>
-      ${p.exercise.also ? `<p class="also">${esc(tx(p.exercise.also))}</p>` : ''}
-      <div class="inward"><div class="inward-box">${INWARD}<p>${esc(t().phoneAway)}</p></div></div>
+      ${p.snack.also ? `<p class="also">${esc(tx(p.snack.also))}</p>` : ''}
+      ${timerBlock(p.minutes)}
+      ${deeperBlock()}
     </article>`;
+}
+
+function deeperBlock() {
+  return `
+      <aside class="deeper">
+        <h3>${esc(t().deeperTitle)}</h3>
+        <p>${esc(t().deeperText)}</p>
+        <p class="credit">${esc(t().credit)}</p>
+      </aside>`;
+}
+
+function takeHomeBlock() {
+  return `
+    <article class="practice">
+      <p class="eyebrow center">${esc(t().takeHome)}</p>
+      <h2 class="theme">${esc(tx(TAKE_HOME.title))}</h2>
+      <blockquote class="pull">${paras(tx(TAKE_HOME.quote))}
+        <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>
+      <section class="exercise">${paras(tx(TAKE_HOME.steps))}</section>
+      ${deeperBlock()}
+    </article>`;
+}
+
+// ---------- snack timer (records nothing) ----------
+const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+function timerBlock(minutes) {
+  const opts = [1, 2, 5].map((m) => `<button type="button" class="tm-opt${m === minutes ? ' on' : ''}" data-min="${m}" aria-pressed="${m === minutes}">${t().minutesChip(m)}</button>`).join('');
+  return `
+      <div class="inward" id="snack-timer" data-min="${minutes}">
+        <div class="inward-box">${INWARD}
+          <div class="tm-face"><p class="tm-clock" aria-live="polite">${fmtClock(minutes * 60)}</p><p class="tm-msg">${esc(t().phoneAway)}</p></div>
+        </div>
+        <div class="tm-controls">
+          <div class="tm-opts" role="group" aria-label="${esc(t().timerLabel)}">${opts}</div>
+          <button type="button" class="btn tm-go">${esc(t().timerStart)}</button>
+          <p class="tm-note">${esc(t().timerNote)}</p>
+        </div>
+      </div>`;
+}
+
+let audioCtx = null;
+function gong() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const master = audioCtx.createGain();
+    master.gain.value = 0.35;
+    master.connect(audioCtx.destination);
+    // A soft singing-bowl tone: a few inharmonic partials with slow decay.
+    [[196, 1, 6], [196 * 2.76, 0.45, 4], [196 * 5.4, 0.18, 2.5], [196 * 1.003, 0.6, 6]].forEach(([f, a, d]) => {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(a, now + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + d);
+      o.connect(g).connect(master);
+      o.start(now);
+      o.stop(now + d + 0.1);
+    });
+  } catch { /* no audio available */ }
+}
+
+function wireTimer() {
+  const box = root.querySelector('#snack-timer');
+  if (!box) return;
+  const clock = box.querySelector('.tm-clock');
+  const msg = box.querySelector('.tm-msg');
+  const goBtn = box.querySelector('.tm-go');
+  let minutes = Number(box.dataset.min);
+  let endAt = 0;
+  let tick = null;
+  let lock = null;
+  const reset = () => { clearInterval(tick); tick = null; endAt = 0; goBtn.textContent = t().timerStart; box.classList.remove('running'); lock?.release?.().catch?.(() => {}); lock = null; };
+  box.querySelectorAll('.tm-opt').forEach((b) => b.addEventListener('click', () => {
+    if (tick) return;
+    minutes = Number(b.dataset.min);
+    box.querySelectorAll('.tm-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    clock.textContent = fmtClock(minutes * 60);
+    msg.textContent = t().phoneAway;
+  }));
+  goBtn.addEventListener('click', async () => {
+    if (tick) { reset(); clock.textContent = fmtClock(minutes * 60); return; }
+    gong();
+    endAt = Date.now() + minutes * 60000;
+    goBtn.textContent = t().timerStop;
+    box.classList.add('running');
+    msg.textContent = '';
+    try { lock = await navigator.wakeLock?.request('screen'); } catch { lock = null; }
+    tick = setInterval(() => {
+      const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      clock.textContent = fmtClock(left);
+      if (left === 0) {
+        reset();
+        gong();
+        try { navigator.vibrate?.(200); } catch { /* ignore */ }
+        msg.textContent = t().timerDone;
+        clock.textContent = fmtClock(minutes * 60);
+      }
+    }, 250);
+  });
+  window.addEventListener('hashchange', reset, { once: true });
 }
 
 function viewJourney() {
@@ -390,13 +499,13 @@ async function viewQuestionnaire(id) {
   const med = daily;
   const p = med ? practiceFor(inst.day_number, totalDays()) : null;
   const hero = daily
-    ? `<p class="kicker">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>`
+    ? `<p class="kicker">${esc(t().dayLabel(inst.day_number))}${p?.reinforcement ? ` · ${esc(t().reinforcement)}` : ''} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>`
     : `<p class="kicker">${esc(sub)}</p><h1>${esc(label)}</h1>`;
   const head = daily
     ? `${med ? practiceBlock(inst.day_number) : ''}
        <div class="evening"><h2>${t().eveningJournal}</h2>
          ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${med ? `${esc(t().eveningHint)} ` : ''}${esc(intro)}</p>`}</div>`
-    : `<div class="intro">${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
+    : `${inst.slot === 'end' ? takeHomeBlock() : ''}<div class="intro">${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
   shell(`
     <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>
     ${head}
@@ -406,6 +515,7 @@ async function viewQuestionnaire(id) {
       ${renderSections(inst.kind, ro ? inst.answers || {} : d.answers, ro, inst.slot, { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) })}
       ${ro ? '' : saveBar()}
     </form>`, { hero });
+  wireTimer();
   root.querySelector('#reveal')?.addEventListener('click', (e) => {
     e.currentTarget.remove();
     const f = root.querySelector('#f');

@@ -268,3 +268,238 @@ form.ro .item { border-left-color: var(--line); }
 .deeper h3 { font: 600 12.5px/1.5 var(--neuf); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); margin: 0 0 8px; }
 .deeper p { max-width: 460px; margin: 0 auto; font-size: 16px; }
 .deeper .credit { margin-top: 16px; font: 400 12.5px/1.5 var(--neuf); color: var(--muted); }
+
+/* =====================================================================
+   UX v1 — lighter screens, today first, the doing above the fold
+   ===================================================================== */
+:root { --muted: #4a4a72; }
+body { font-size: 18px; line-height: 1.55; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+body.no-scroll { overflow: hidden; }
+
+/* masthead: small wordmark in the bar; compact hero on inner pages */
+.brand-sm img { height: 18px; display: block; }
+.masthead { padding-bottom: 30px; }
+.masthead.compact { padding-bottom: 24px; }
+.masthead.compact .kicker { margin-top: 14px; }
+.masthead.compact h1 { font-size: clamp(26px, 7vw, 38px); margin-top: 8px; }
+.masthead .lede { font-size: 16px; margin-top: 12px; }
+.masthead .progress { margin-top: 22px; }
+.how { max-width: 460px; margin: 18px auto 0; text-align: left; }
+.how summary { cursor: pointer; text-align: center; font: 400 12px/1.5 var(--neuf); letter-spacing: .18em; text-transform: uppercase; color: var(--bg); list-style: none; }
+.how summary::-webkit-details-marker { display: none; }
+.how summary::after { content: ' +'; }
+.how[open] summary::after { content: ' –'; }
+.how p { font: 400 16px/1.6 var(--neuf); color: var(--bg); margin: 12px 0 0; }
+.how .credit { font-size: 13.5px; opacity: .85; }
+
+/* journey: today card + compact rows */
+.today-card { display: block; background: var(--card); border-left: 4px solid var(--open); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 18px 20px 20px; margin: 0 0 22px; text-decoration: none; color: var(--ink); }
+.today-card.done { border-left-color: var(--done); }
+.today-label { display: block; font: 600 11.5px/1.5 var(--neuf); letter-spacing: .18em; text-transform: uppercase; color: var(--mid-blue); }
+.today-card strong { display: block; font: 400 24px/1.25 var(--arizona); margin: 6px 0 16px; }
+.today-card .btn { pointer-events: none; }
+.rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.row { border-bottom: 1px solid var(--line); }
+.row-link { display: flex; align-items: center; gap: 14px; padding: 14px 4px; min-height: 64px; text-decoration: none; color: var(--ink); }
+a.row-link:active { background: var(--blue-tint); }
+.row-text { flex: 1; min-width: 0; }
+.row-text strong { display: block; font: 400 18px/1.3 var(--arizona); }
+.row-sub { display: block; font: 400 13px/1.4 var(--neuf); letter-spacing: .06em; color: var(--muted); margin-top: 2px; }
+.row.locked .row-text strong { color: var(--muted); }
+.row-status { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; }
+.row-status svg { width: 20px; height: 20px; }
+.row-status.done { background: var(--accent-soft); color: var(--done); }
+.row-status.open { color: var(--mid-blue); }
+.row-status.locked { color: #8a89a6; }
+.row-status.missed { color: #8a89a6; }
+.footnote { text-align: center; font: 400 14px/1.5 var(--neuf); color: var(--muted); margin: 18px 0 0; }
+
+/* day page */
+.practice { padding: 26px 20px 0; }
+.thought { text-align: center; }
+.thought .eyebrow, .snack .eyebrow { text-align: center; }
+.practice .theme { font: 400 clamp(22px, 5.6vw, 27px)/1.3 var(--edict); margin: 10px auto 20px; }
+.practice blockquote.pull { margin: 0 -20px; padding: 26px 24px 24px; font: 400 clamp(18px, 4.6vw, 21px)/1.5 var(--arizona); text-align: left; }
+.practice blockquote.pull p:first-child::before, .practice blockquote.pull p:last-of-type::after { content: none; }
+.practice blockquote.pull footer { margin-top: 16px; text-align: left; }
+.more summary { cursor: pointer; font: 400 12px/1.5 var(--neuf); letter-spacing: .16em; text-transform: uppercase; color: var(--bg); margin: 4px 0 2px; list-style: none; opacity: .9; }
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after { content: ' ↓'; }
+.more[open] summary { display: none; }
+.more p { margin: 0 0 .75em; }
+.snack { padding: 26px 0 8px; }
+.snack h3 { text-align: center; font-size: 23px; margin: 8px 0 14px; }
+.steps { margin: 0 0 20px; padding-left: 1.3em; font-size: 18px; line-height: 1.5; }
+.steps li { margin: 0 0 .55em; padding-left: .2em; }
+.steps li::marker { color: var(--mid-blue); font: 600 15px var(--neuf); }
+.practice .reinforce { margin: 8px auto 0; }
+.launcher { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.launcher .tm-start { max-width: 320px; }
+.tm-len { display: flex; align-items: center; gap: 8px; font: 400 12px var(--neuf); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.tm-len .tm-opt { border: 1px solid var(--line); color: var(--ink); background: var(--card); min-height: 44px; min-width: 64px; }
+.tm-len .tm-opt.on { background: var(--blue-tint); border-color: var(--mid-blue); color: var(--ink); }
+.repeat { text-align: center; font: italic 400 16px/1.5 var(--arizona); color: var(--mid-blue); margin: 16px 0 0; }
+.practice .also { text-align: center; margin: 10px 0 0; }
+.deeper-short { margin: 18px -20px 0; padding: 14px 20px; background: var(--sand); text-align: center; font: 400 14px/1.5 var(--neuf); color: var(--muted); }
+.deeper { margin-top: 18px; }
+.evening { text-align: center; margin: 30px 0 14px; }
+.evening h2 { font-size: 26px; margin-bottom: 4px; }
+.evening p { color: var(--muted); max-width: 420px; margin: 0 auto; }
+#reveal { margin-bottom: 18px; }
+.thanks { text-align: center; font: 400 20px/1.4 var(--arizona); color: var(--ink); margin: 6px 0 18px; }
+
+/* full-screen timer */
+.tm-overlay { position: fixed; inset: 0; z-index: 50; background: var(--mid-blue); color: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; padding: 24px; }
+.tm-overlay .inward-box { position: relative; width: min(340px, 86vw); aspect-ratio: 1; display: grid; place-items: center; }
+.tm-overlay .inward-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tm-overlay .tm-face { position: relative; text-align: center; }
+.tm-overlay .tm-clock { font: 400 clamp(52px, 15vw, 68px)/1 var(--arizona); margin: 0 0 12px; font-variant-numeric: tabular-nums; }
+.tm-overlay .tm-msg { font: 400 17px/1.5 var(--neuf); margin: 0; max-width: 220px; }
+.tm-overlay.running .inward-art { animation: breathe 8s ease-in-out infinite; transform-origin: 50% 50%; }
+.tm-overlay .tm-stop { background: var(--bg); color: var(--ink); max-width: 240px; }
+.tm-overlay .tm-note { font: 400 13px/1.5 var(--neuf); opacity: .85; text-align: center; max-width: 300px; margin: 0; }
+
+/* questionnaires: steps, compact options, bigger 0–10 targets */
+.pager { margin: 0 0 6px; }
+.step-of { text-align: center; font: 600 11.5px/1.5 var(--neuf); letter-spacing: .2em; text-transform: uppercase; color: var(--mid-blue); margin: 0 0 8px; }
+.pbar { height: 3px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.pbar span { display: block; height: 100%; background: var(--mid-blue); transition: width .3s; }
+.page[hidden], .pager-nav [hidden] { display: none !important; }
+.pager-nav { margin-top: 18px; }
+.pager-btns { display: flex; gap: 10px; }
+.pager-btns .btn { flex: 1; margin: 0; max-width: none; }
+.pager-btns .btn.ghost { flex: 0 0 34%; }
+.pager-nav .savebar { padding-top: 0; }
+.opt span { padding: 10px 14px; min-height: 48px; display: flex; align-items: center; line-height: 1.3; }
+.scale.n11 { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.scale.n11 .pt span { height: 52px; font-size: 17px; border-radius: 12px; }
+.pt span { height: 52px; font-size: 17px; }
+.qsec { margin-top: 18px; }
+.qhead .prompt { font-size: 18px; }
+.item legend { font-size: 18.5px; line-height: 1.4; }
+.anchors { font-size: 14px; color: var(--muted); }
+
+/* register: short consent */
+.bullets { margin: 0 0 10px; padding-left: 1.1em; color: var(--ink); font-size: 16px; }
+.bullets li { margin: 0 0 .35em; }
+.fullinfo summary { cursor: pointer; color: var(--link); font-size: 15px; }
+.fullinfo p { color: var(--muted); font-size: 15px; }
+.consent p { color: var(--muted); }
+
+/* =====================================================================
+   UX v2 — Start above the fold, journal on its own, quieter journey
+   ===================================================================== */
+/* header: compact language selector */
+.mast-bar { padding: 12px 0; }
+.lang-select select { appearance: none; -webkit-appearance: none; background: transparent; color: var(--bg); border: 1px solid rgba(252, 250, 242, .7);
+  border-radius: 999px; padding: 7px 30px 7px 14px; min-height: 40px; font: 400 12.5px var(--neuf); letter-spacing: .14em; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, #fcfaf2 50%), linear-gradient(135deg, #fcfaf2 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+.lang-select option { color: #000051; }
+/* banner shrinks after step 1 */
+.masthead.stepped .lede, .masthead.stepped .kicker { display: none; }
+.masthead.stepped { padding-bottom: 18px; }
+.masthead.stepped h1 { font-size: clamp(22px, 6vw, 30px); }
+/* day header carries the theme line */
+.masthead .theme-line { font: italic 400 17px/1.45 var(--arizona); margin-top: 8px; opacity: .95; }
+/* snack first, Start right under the title */
+.snack { padding-top: 4px; }
+.snack .launcher { margin: 4px 0 20px; }
+.thought { border-top: 1px solid rgba(0, 0, 81, .25); padding-top: 22px; }
+.thought .eyebrow { margin-bottom: 14px; }
+/* journal on its own page */
+.journal-title { text-align: center; font-size: 28px; margin: 4px 0 6px; }
+.journal-bar { position: sticky; bottom: 0; z-index: 5; margin: 18px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg); border-top: 1px solid var(--line); box-shadow: 0 -6px 16px rgba(0, 0, 81, .05); }
+.jb-inner { display: flex; align-items: center; gap: 12px; }
+.jb-count { flex: 1; font: 400 14px/1.3 var(--neuf); color: var(--muted); }
+.jb-inner .btn { width: auto; flex: none; padding: 12px 20px; min-height: 48px; margin: 0; }
+.journal-bar .muted { margin: 6px 0 0; font-size: 13px; }
+/* 0–10: second row right-aligned so 10 sits under its label */
+/* journey */
+.row.is-today .row-link { background: var(--open-soft); margin: 0 -8px; padding-left: 12px; padding-right: 12px; }
+.today-tag { font: 600 11px var(--neuf); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.row-status.open, .row-status.missed { color: var(--mid-blue); background: transparent; }
+/* toast at the top */
+.toast { top: 14px; bottom: auto; transform: translate(-50%, -20px); }
+.toast.show { transform: translate(-50%, 0); }
+.tm-len { flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.tm-len > span { flex-basis: 100%; text-align: center; }
+
+/* =====================================================================
+   UX v3 — no sideways overflow, journey "today" above the fold at large text
+   ===================================================================== */
+.jb-inner .btn { flex: 0 1 auto; min-width: 0; white-space: normal; text-align: center; line-height: 1.2; letter-spacing: .1em; padding: 12px 16px; }
+.jb-count { min-width: 0; }
+.anchors.one { justify-content: center; gap: 10px; flex-wrap: wrap; text-align: center; }
+.anchors.one span:last-child { text-align: center; }
+.pager-btns .btn { line-height: 1.2; padding-top: 12px; padding-bottom: 12px; }
+.pager-btns #next, .pager-btns #save { flex: 1; }
+#savenote { margin: 0 0 10px; }
+.row.locked .row-text strong { color: var(--text); }
+.row-status.locked { color: #6c6b8c; }
+.how-below { margin: 22px 0 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.how-below summary { cursor: pointer; text-align: center; font: 600 12px/1.5 var(--neuf); letter-spacing: .18em; text-transform: uppercase; color: var(--mid-blue); list-style: none; }
+.how-below summary::-webkit-details-marker { display: none; }
+.how-below summary::after { content: ' +'; }
+.how-below[open] summary::after { content: ' –'; }
+.how-below p { font-size: 16.5px; margin: 12px 0 0; }
+.how-below .credit { font: 400 13.5px/1.5 var(--neuf); color: var(--muted); }
+/* very narrow screens / large text: tighter header so "Open today" stays on the first screen */
+@media (max-width: 340px) {
+  .masthead { padding-bottom: 18px; }
+  .masthead h1 { font-size: 25px; }
+  .masthead .kicker { margin-top: 16px; }
+  .masthead .progress { margin-top: 14px; }
+  main { padding-top: 18px; }
+  .today-card { padding: 14px 16px 16px; }
+  .today-card strong { font-size: 21px; margin-bottom: 12px; }
+}
+
+/* =====================================================================
+   UX v4 — journal bar that never collides, compact header in the journal
+   ===================================================================== */
+.journal-bar { display: flex; flex-direction: column; gap: 8px; }
+.jb-top { display: flex; align-items: center; gap: 12px; }
+.jb-count { flex: none; white-space: nowrap; font: 400 13.5px/1.2 var(--neuf); color: var(--muted); }
+.jb-line { flex: 1; height: 3px; background: var(--line); border-radius: 3px; overflow: hidden; min-width: 40px; }
+.jb-line span { display: block; height: 100%; width: 0; background: var(--mid-blue); transition: width .25s; }
+.journal-bar .btn { width: 100%; max-width: none; margin: 0; }
+.journal-bar .err { margin: 0; }
+.jb-note { margin: 18px 0 0; }
+.jb-inner { display: none; }
+.masthead.stepped .theme-line { display: none; }
+.journal-title { font-size: 24px; margin: 0 0 4px; }
+#journal-view .back { margin: 0 0 8px; }
+#journal-view .qsec:first-of-type { margin-top: 6px; }
+.toast { top: 68px; }
+.practice blockquote.pull details[open] ~ * , .practice blockquote.pull:has(details[open]) .q-preview-end { display: none; }
+
+/* =====================================================================
+   UX v5 — polish
+   ===================================================================== */
+.flash { margin: 0 0 16px; padding: 12px 16px; border-radius: 12px; background: var(--accent-soft); color: var(--done); text-align: center;
+  font: 400 15px/1.4 var(--neuf); transition: opacity .6s, max-height .6s, margin .6s, padding .6s; max-height: 80px; overflow: hidden; }
+.flash.gone { opacity: 0; max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+.today-card .btn { text-align: center; line-height: 1.25; }
+.journal-bar { padding-top: 8px; gap: 6px; }
+.journal-bar .btn { min-height: 46px; padding-top: 10px; padding-bottom: 10px; }
+
+/* =====================================================================
+   Final: accessibility (timer, motion, focus) and last polish
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) { .tm-overlay.running .inward-art { animation: none; } .pbar span, .jb-line span, .flash { transition: none; } }
+:focus-visible { outline: 3px solid var(--mid-blue); outline-offset: 2px; }
+.pt input:focus-visible + span, .opt input:focus-visible + span, .pill input:focus-visible + span { outline: 3px solid var(--mid-blue); outline-offset: 2px; }
+.masthead :focus-visible, .tm-overlay :focus-visible, blockquote.pull :focus-visible { outline-color: var(--bg); }
+input:focus, select:focus { outline: 3px solid var(--mid-blue); outline-offset: 1px; }
+/* sticky journal bar covers the bottom edge completely */
+.journal-bar { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; padding-left: max(16px, calc((100vw - 720px) / 2 + 16px)); padding-right: max(16px, calc((100vw - 720px) / 2 + 16px)); }
+#journal-view form:not(.ro) { padding-bottom: 130px; }
+.practice > .thought:first-child { border-top: 0; padding-top: 4px; }
+.jb-count { font-family: var(--arizona); font-variant-numeric: lining-nums; font-size: 15px; }
+.flash { background: var(--blue-tint); color: var(--ink); }
+.nowrap { white-space: nowrap; }

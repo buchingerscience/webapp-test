@@ -19,7 +19,9 @@ const root = document.getElementById('app');
 
 // ---------- utils ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const tx = (obj) => (obj ? obj[state.lang] ?? obj.en : '');
+const typoHtml = (h) => (state.lang === 'fr' || state.lang === 'es' ? h.replace(/&#39;/g, '’').replace(/([A-Za-zÀ-ÿ])'([A-Za-zÀ-ÿ])/g, '$1’$2') : h);
+const typo = (v) => (typeof v === 'string' && (state.lang === 'fr' || state.lang === 'es') ? v.replace(/'/g, '’') : v);
+const tx = (obj) => { const v = obj ? obj[state.lang] ?? obj.en : ''; return Array.isArray(v) ? v.map(typo) : typo(v); };
 const fmtDate = (iso, opts = { weekday: 'short', day: 'numeric', month: 'short' }) =>
   new Intl.DateTimeFormat(LOCALES[state.lang], { ...opts, timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 
@@ -37,6 +39,9 @@ async function api(path, body, method) {
 const errText = (e) => t()[`err_${e.message}`] || t().err_generic;
 
 function toast(msg) {
+  state.flash = msg; // shown by shell() at the top of the next page
+}
+function toastOverlay(msg) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = msg;
@@ -54,24 +59,25 @@ const INWARD = `<svg class="inward-art" viewBox="0 0 400 400" aria-hidden="true"
   <path d="M8 8 L58 58 M58 40 V58 H40"/><path d="M392 8 L342 58 M342 40 V58 H360"/>
   <path d="M8 392 L58 342 M58 360 V342 H40"/><path d="M392 392 L342 342 M342 360 V342 H360"/></g></svg>`;
 
-function shell(inner, { narrow = false, hero = '', cover = false } = {}) {
-  const langBtns = LANGS.map((l) => `<button class="lang ${l === state.lang ? 'on' : ''}" data-lang="${l}" aria-pressed="${l === state.lang}">${LANG_LABELS[l]}</button>`).join('');
+function shell(inner, { narrow = false, hero = '', cover = false, compact = false } = {}) {
+  const langOpts = LANGS.map((l) => `<option value="${l}" ${l === state.lang ? 'selected' : ''}>${LANG_LABELS[l]}</option>`).join('');
   const logo = `<a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo-light.svg" alt="Buchinger"></a>`;
-  root.innerHTML = `
-    <header class="masthead ${cover ? 'cover' : ''}">
+  const barLeft = cover
+    ? `<span class="mast-label">${t().study}</span>`
+    : `<a href="#/journey" class="brand-sm" aria-label="Inner Calm"><img src="/logo-light.svg" alt="Buchinger"></a>`;
+  root.innerHTML = typoHtml(`
+    <header class="masthead ${cover ? 'cover' : ''} ${compact ? 'compact' : ''}">
       <div class="mast-bar">
-        <span class="mast-label">${t().study}</span>
-        <div class="mast-right">
-          <nav class="langs" aria-label="Language">${langBtns}</nav>
-          ${state.me ? `<button class="link" id="logout">${t().logout}</button>` : ''}
-        </div>
+        ${barLeft}
+        <label class="lang-select"><span class="sr">${t().languageLabel}</span>
+          <select id="lang" aria-label="${t().languageLabel}">${langOpts}</select></label>
       </div>
-      ${cover ? '' : logo}
       <div class="mast-inner">${hero}</div>
       ${cover ? logo : ''}
     </header>
-    <main class="${narrow ? 'narrow' : ''}">${inner}</main>`;
-  root.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+    <main class="${narrow ? 'narrow' : ''}">${state.flash ? `<p class="flash" role="status">${esc(state.flash)}</p>` : ''}${inner}</main>`);
+  if (state.flash) { state.flash = null; setTimeout(() => root.querySelector('.flash')?.classList.add('gone'), 3500); }
+  root.querySelector('#lang').addEventListener('change', (e) => setLang(e.target.value));
   root.querySelector('#logout')?.addEventListener('click', async () => {
     await api('/logout', {}).catch(() => {});
     state.me = null;
@@ -79,7 +85,6 @@ function shell(inner, { narrow = false, hero = '', cover = false } = {}) {
   });
   window.scrollTo?.(0, 0);
 }
-
 function setLang(l) {
   saveDraft();
   state.lang = l;
@@ -100,7 +105,9 @@ function renderItem(it, value, ro, ctx = {}) {
       opts.push(`<label class="pt"><input type="radio" name="${name}" value="${v}" ${value === v ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${v}</span></label>`);
     }
     control = `<div class="scale n${r.max - r.min + 1}" role="radiogroup">${opts.join('')}</div>
-      <div class="anchors"><span>${r.min} · ${esc(tx(r.anchors)[0])}</span><span>${r.max} · ${esc(tx(r.anchors)[1])}</span></div>`;
+      ${r.max - r.min >= 10
+        ? `<div class="anchors one"><span>${r.min} = ${esc(tx(r.anchors)[0])}</span><span aria-hidden="true">·</span><span>${r.max} = ${esc(tx(r.anchors)[1])}</span></div>`
+        : `<div class="anchors"><span>${r.min} = ${esc(tx(r.anchors)[0])}</span><span>${r.max} = ${esc(tx(r.anchors)[1])}</span></div>`}`;
   } else if (r.type === 'labelled') {
     const labels = tx(r.labels);
     const values = [];
@@ -125,15 +132,14 @@ function renderItem(it, value, ro, ctx = {}) {
   return `<fieldset class="item ${answered ? 'answered' : ''}" data-item="${name}" ${show}><legend><span class="qn" aria-hidden="true"></span>${esc(text)}</legend>${control}</fieldset>`;
 }
 
-function renderSections(kind, answers = {}, ro = false, slot, ctx = {}) {
+function renderSections(kind, answers = {}, ro = false, slot, ctx = {}, paged = false) {
   return sectionsOf(kind, slot).map((s) => `
-    <section class="qsec">
+    <section class="qsec ${paged ? 'page' : ''}">
       <div class="qhead"><h3>${esc(tx(s.title))}</h3>
       ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}</div>
       ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('')}
     </section>`).join('');
 }
-
 function applyShowIf(form) {
   form.querySelectorAll('[data-showif]').forEach((fs) => {
     const src = form.querySelector(`input[name="${fs.dataset.showif}"]:checked`);
@@ -162,7 +168,7 @@ function markMissing(form, missing) {
 // Keep unsaved answers when the language is switched
 function saveDraft() {
   const form = root.querySelector('form[data-kind]');
-  if (!form || form.hidden) return;
+  if (!form || form.closest('[hidden]')) return;
   const extra = {};
   form.querySelectorAll('[data-keep]').forEach((el) => { extra[el.name] = el.value; });
   state.draft[location.hash] = { answers: collect(form, form.dataset.kind), extra };
@@ -205,7 +211,9 @@ function viewRegister() {
     <form id="f" novalidate>
       <label>${t().email}<input name="email" type="email" autocomplete="email" required></label>
       <label>${t().password}<input name="password" type="password" autocomplete="new-password" minlength="8" required><small>${t().passwordHint}</small></label>
-      <div class="consent"><h3>${t().consentTitle}</h3><p>${t().consentText}</p>
+      <div class="consent"><h3>${t().consentTitle}</h3>
+        <ul class="bullets">${t().consentBullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
+        <details class="fullinfo"><summary>${t().fullInfo}</summary><p>${t().consentText}</p></details>
         <label class="check"><input type="checkbox" name="consent"> <span>${t().consentCheck}</span></label></div>
       <p class="err" id="err" role="alert"></p>
       <button class="btn">${t().register}</button>
@@ -219,7 +227,6 @@ function viewRegister() {
     } catch (err) { root.querySelector('#err').textContent = errText(err); }
   });
 }
-
 function viewForgot() {
   authCard(t().forgotTitle, `
     <form id="f" novalidate>
@@ -255,8 +262,9 @@ function viewBaseline() {
   const d = state.draft[location.hash] || { answers: {}, extra: {} };
   const ex = d.extra;
   shell(`
-    <form data-kind="Q1" data-slot="baseline" id="f" novalidate>
-      <section class="card stay">
+    <form data-kind="Q1" data-slot="baseline" data-paged="1" id="f" novalidate>
+      ${pagerTop()}
+      <section class="card stay page">
         <h3>${t().yourStay}</h3>
         <label>${t().clinic}<select name="clinic" data-keep required><option value="">${t().chooseClinic}</option>
           ${CLINICS.map((c) => `<option value="${c.id}" ${ex.clinic === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>
@@ -265,8 +273,8 @@ function viewBaseline() {
           <label>${t().departure}<input type="date" name="departure_date" data-keep value="${esc(ex.departure_date || '')}" required></label>
         </div>
       </section>
-      ${renderSections('Q1', d.answers, false, 'baseline')}
-      ${saveBar()}
+      ${renderSections('Q1', d.answers, false, 'baseline', {}, true)}
+      ${pagerNav()}
     </form>`, { hero: `<p class="kicker">${t().kicker}</p><h1>${t().welcomeTitle}</h1><p class="lede">${t().welcomeText}</p>` });
   wireForm('Q1', async (answers, form) => {
     const f = new FormData(form);
@@ -274,13 +282,62 @@ function viewBaseline() {
   });
 }
 
-const saveBar = () => `
-  <div class="savebar"><p class="err" id="err" role="alert"></p><p class="muted small">${t().saveNote}</p>
-  <button class="btn" id="save">${t().save}</button></div>`;
+const pagerTop = () => `<div class="pager" aria-live="polite"><p class="step-of"></p><div class="pbar"><span></span></div></div>`;
+const pagerNav = () => `
+  <div class="pager-nav">
+    <p class="err" id="err" role="alert"></p>
+    <p class="muted small center" id="savenote">${t().saveNoteShort}</p>
+    <div class="pager-btns"><button type="button" class="btn ghost" id="prev">${t().prevQ}</button><button type="button" class="btn" id="next">${t().next}</button><button class="btn" id="save">${t().save}</button></div>
+  </div>`;
 
-function wireForm(kind, submit) {
+// Presentation only: every question is still required and the server still validates everything.
+function setupPager(form) {
+  const pages = [...form.querySelectorAll('.page')];
+  if (pages.length < 2) return null;
+  const stepOf = form.querySelector('.step-of');
+  const bar = form.querySelector('.pbar span');
+  const prev = form.querySelector('#prev');
+  const next = form.querySelector('#next');
+  const save = form.querySelector('#save');
+  const saveNote = form.querySelector('#savenote');
+  const errEl = form.querySelector('#err');
+  let i = 0;
+  const show = (n, scroll = true) => {
+    i = Math.max(0, Math.min(n, pages.length - 1));
+    pages.forEach((pg, k) => { pg.hidden = k !== i; });
+    stepOf.textContent = t().stepOf(i + 1, pages.length);
+    bar.style.width = `${Math.round(((i + 1) / pages.length) * 100)}%`;
+    prev.hidden = i === 0;
+    next.hidden = i === pages.length - 1;
+    save.hidden = i !== pages.length - 1;
+    saveNote.hidden = i !== pages.length - 1;
+    errEl.textContent = '';
+    document.querySelector('.masthead')?.classList.toggle('stepped', i > 0);
+    if (scroll) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const isAnswered = (it) => it.querySelector('input:checked') || [...it.querySelectorAll('input[type=number]')].some((x) => x.value !== '');
+  next.addEventListener('click', () => {
+    const page = pages[i];
+    const emptyFields = [...page.querySelectorAll('select[required], input[type=date][required]')].filter((x) => !x.value);
+    const emptyItems = [...page.querySelectorAll('.item')].filter((it) => !it.hidden && !isAnswered(it));
+    if (emptyFields.length) { emptyFields[0].focus(); errEl.textContent = t().stepMissing; return; }
+    if (emptyItems.length) { markMissing(form, emptyItems.map((it) => it.dataset.item)); errEl.textContent = t().stepMissing; return; }
+    show(i + 1);
+  });
+  prev.addEventListener('click', () => show(i - 1));
+  show(0, false);
+  return {
+    goToItem(id) { const k = pages.findIndex((pg) => pg.querySelector(`[data-item="${id}"]`)); if (k >= 0) show(k); },
+    goToPage: show,
+  };
+}
+const saveBar = () => `
+  <div class="savebar"><p class="err" id="err" role="alert"></p><p class="muted small">${t().saveNoteShort}</p>
+  <button class="btn" id="save">${t().save}</button></div>`;
+function wireForm(kind, submit, doneHash = '#/journey') {
   const form = root.querySelector('#f');
   applyShowIf(form);
+  const pager = form.dataset.paged ? setupPager(form) : null;
   const markAnswered = (e) => {
     const item = e.target.closest('.item');
     if (!item) return;
@@ -293,6 +350,7 @@ function wireForm(kind, submit) {
     e.preventDefault();
     const btn = form.querySelector('#save');
     const errEl = form.querySelector('#err');
+    const label = btn.textContent;
     errEl.textContent = '';
     btn.disabled = true;
     btn.textContent = t().saving;
@@ -301,51 +359,63 @@ function wireForm(kind, submit) {
       delete state.draft[location.hash];
       Object.assign(state.me, { stay: r.stay, timeline: r.timeline });
       toast(t().saved);
-      go('#/journey');
+      go(doneHash);
     } catch (err) {
       btn.disabled = false;
-      btn.textContent = t().save;
-      if (err.message === 'incomplete') { errEl.textContent = t().missing; markMissing(form, err.data.missing || []); }
-      else errEl.textContent = errText(err);
+      btn.textContent = label;
+      if (err.message === 'incomplete') {
+        const missing = err.data.missing || [];
+        pager?.goToItem(missing[0]);
+        markMissing(form, missing);
+        errEl.textContent = t().missing;
+      } else {
+        pager?.goToPage(0);
+        errEl.textContent = errText(err);
+      }
     }
   });
 }
-
 function slotLabel(i) {
   if (i.slot === 'baseline') return [t().baselineLabel, t().baselineSub];
   if (i.slot === 'end') return [t().endLabel, `${t().endSub} · ${fmtDate(i.open_date)}`];
   const p = practiceFor(i.day_number, totalDays());
-  const title = p ? (p.reinforcement ? `${t().reinforcement} · ${tx(p.title)}` : tx(p.title)) : '';
-  return [t().dayTitle(i.day_number, title), `${fmtDate(i.open_date)} · ${t().dailySub}`];
+  return [t().dayTitle(i.day_number, p ? tx(p.title) : ''), `${fmtDate(i.open_date)}${p?.reinforcement ? ` · ${t().repeatOf(p.day)}` : ''}`];
 }
-
 const totalDays = () => (state.me?.timeline || []).filter((x) => x.kind === 'Q2').length;
 const prevDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
 const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join('');
-
+const QUOTES = { en: ['“', '”'], de: ['„', '“'], fr: ['« ', ' »'], es: ['«', '»'] };
+// Quote with language-correct marks; only the first paragraph is shown, the rest is one tap away.
+function quoteBlock(parts) {
+  const [o, c] = QUOTES[state.lang] || QUOTES.en;
+  const ps = (parts || []).map((x, k, a) => `${k === 0 ? o : ''}${x}${k === a.length - 1 ? c : ''}`);
+  const rest = ps.slice(1);
+  return `<blockquote class="pull"><p>${esc(ps[0] || '')}${rest.length ? `<span class="q-preview-end">…${esc(c.trim())}</span>` : ''}</p>
+    ${rest.length ? `<details class="more"><summary>${esc(t().readFull)}</summary>${paras(rest)}</details>` : ''}
+    <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>`;
+}
 function practiceBlock(dayNumber) {
   const p = practiceFor(dayNumber, totalDays());
   if (!p) return `<div class="card note">${esc(t().programmeEnded)}</div>`;
   const steps = (tx(p.snack.steps) || []).map((x) => fillMinutes(x, state.lang, p.minutes));
   return `
     <article class="practice">
-      <p class="eyebrow center">${p.reinforcement ? `${esc(t().reinforcement)} · ` : ''}${esc(t().todaysPractice)}</p>
-      ${p.reinforcement ? `<p class="reinforce">${esc(t().reinforceIntro)}</p>` : ''}
-      <h2 class="theme">${esc(tx(p.theme))}</h2>
-      <blockquote class="pull">${paras(tx(p.quote))}
-        <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>
-      <section class="exercise">
+      <section class="snack">
         <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.minutes)}</span></p>
         <h3>${esc(tx(p.snack.title))}</h3>
-        ${paras(steps)}
-        <p class="snack-repeat">${esc(t().snackRepeat)}</p>
+        ${timerBlock(p.minutes)}
+        ${p.reinforcement ? `<p class="reinforce">${esc(t().reinforceIntro)}</p>` : ''}
+        <ol class="steps">${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+        <p class="repeat">${esc(t().repeatShort)}</p>
+        ${p.snack.also ? `<p class="also">${esc(tx(p.snack.also))}</p>` : ''}
       </section>
-      ${p.snack.also ? `<p class="also">${esc(tx(p.snack.also))}</p>` : ''}
-      ${timerBlock(p.minutes)}
-      ${deeperBlock()}
+      <section class="thought">
+        <p class="eyebrow">${esc(t().thoughtLabel)}</p>
+        ${quoteBlock(tx(p.quote))}
+      </section>
+      ${dayNumber === 1 ? deeperBlock() : `<p class="deeper-short">${esc(t().deeperShort)}</p>`}
     </article>`;
 }
-
 function deeperBlock() {
   return `
       <aside class="deeper">
@@ -355,36 +425,28 @@ function deeperBlock() {
       </aside>`;
 }
 
-function takeHomeBlock() {
+function takeHomeBlock(withLabel = true) {
   return `
     <article class="practice">
-      <p class="eyebrow center">${esc(t().takeHome)}</p>
-      <h2 class="theme">${esc(tx(TAKE_HOME.title))}</h2>
-      <blockquote class="pull">${paras(tx(TAKE_HOME.quote))}
-        <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>
-      <section class="exercise">${paras(tx(TAKE_HOME.steps))}</section>
-      ${deeperBlock()}
+      <section class="thought">
+        ${withLabel ? `<p class="eyebrow">${esc(t().takeHome)}</p>` : ''}
+        <h2 class="theme">${esc(tx(TAKE_HOME.title))}</h2>
+        ${quoteBlock(tx(TAKE_HOME.quote))}
+      </section>
+      <section class="snack"><ol class="steps">${tx(TAKE_HOME.steps).map((x) => `<li>${esc(x)}</li>`).join('')}</ol></section>
     </article>`;
 }
-
 // ---------- snack timer (records nothing) ----------
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 function timerBlock(minutes) {
   const opts = [1, 2, 5].map((m) => `<button type="button" class="tm-opt${m === minutes ? ' on' : ''}" data-min="${m}" aria-pressed="${m === minutes}">${t().minutesChip(m)}</button>`).join('');
   return `
-      <div class="inward" id="snack-timer" data-min="${minutes}">
-        <div class="inward-box">${INWARD}
-          <div class="tm-face"><p class="tm-clock" aria-live="polite">${fmtClock(minutes * 60)}</p><p class="tm-msg">${esc(t().phoneAway)}</p></div>
-        </div>
-        <div class="tm-controls">
-          <div class="tm-opts" role="group" aria-label="${esc(t().timerLabel)}">${opts}</div>
-          <button type="button" class="btn tm-go">${esc(t().timerStart)}</button>
-          <p class="tm-note">${esc(t().timerNote)}</p>
-        </div>
+      <div class="launcher" id="snack-timer" data-min="${minutes}">
+        <button type="button" class="btn tm-start">${esc(t().startTimer(minutes))}</button>
+        <div class="tm-len" role="group" aria-label="${esc(t().lengthLabel)}"><span>${esc(t().lengthLabel)}</span>${opts}</div>
       </div>`;
 }
-
 let audioCtx = null;
 function gong() {
   try {
@@ -413,119 +475,209 @@ function gong() {
 function wireTimer() {
   const box = root.querySelector('#snack-timer');
   if (!box) return;
-  const clock = box.querySelector('.tm-clock');
-  const msg = box.querySelector('.tm-msg');
-  const goBtn = box.querySelector('.tm-go');
+  const startBtn = box.querySelector('.tm-start');
   let minutes = Number(box.dataset.min);
-  let endAt = 0;
-  let tick = null;
-  let lock = null;
-  const reset = () => { clearInterval(tick); tick = null; endAt = 0; goBtn.textContent = t().timerStart; box.classList.remove('running'); lock?.release?.().catch?.(() => {}); lock = null; };
   box.querySelectorAll('.tm-opt').forEach((b) => b.addEventListener('click', () => {
-    if (tick) return;
     minutes = Number(b.dataset.min);
     box.querySelectorAll('.tm-opt').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
-    clock.textContent = fmtClock(minutes * 60);
-    msg.textContent = t().phoneAway;
+    startBtn.textContent = t().startTimer(minutes);
   }));
-  goBtn.addEventListener('click', async () => {
-    if (tick) { reset(); clock.textContent = fmtClock(minutes * 60); return; }
-    gong();
-    endAt = Date.now() + minutes * 60000;
-    goBtn.textContent = t().timerStop;
-    box.classList.add('running');
-    msg.textContent = '';
-    try { lock = await navigator.wakeLock?.request('screen'); } catch { lock = null; }
-    tick = setInterval(() => {
-      const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
-      clock.textContent = fmtClock(left);
-      if (left === 0) {
-        reset();
-        gong();
-        try { navigator.vibrate?.(200); } catch { /* ignore */ }
-        msg.textContent = t().timerDone;
-        clock.textContent = fmtClock(minutes * 60);
-      }
-    }, 250);
-  });
-  window.addEventListener('hashchange', reset, { once: true });
+  startBtn.addEventListener('click', () => openTimer(minutes));
 }
+
+async function openTimer(minutes) {
+  const ov = document.createElement('div');
+  ov.className = 'tm-overlay';
+  ov.setAttribute('role', 'dialog');
+  ov.setAttribute('aria-modal', 'true');
+  ov.setAttribute('aria-label', t().timerLabel);
+  const opener = document.activeElement;
+  ov.innerHTML = `
+    <div class="inward-box">${INWARD}
+      <div class="tm-face"><p class="tm-clock" aria-hidden="true">${fmtClock(minutes * 60)}</p><p class="tm-msg">${esc(t().phoneAway)}</p></div>
+    </div>
+    <p class="sr" role="status" aria-live="polite" id="tm-status">${esc(t().startTimer(minutes))}</p>
+    <button type="button" class="btn tm-stop">${esc(t().timerStop)}</button>
+    <p class="tm-note">${esc(t().timerNote)}</p>`;
+  document.body.appendChild(ov);
+  document.body.classList.add('no-scroll');
+  const clock = ov.querySelector('.tm-clock');
+  const msg = ov.querySelector('.tm-msg');
+  const stop = ov.querySelector('.tm-stop');
+  let lock = null;
+  let tick = null;
+  const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'Tab') { e.preventDefault(); stop.focus(); } };
+  const close = () => {
+    clearInterval(tick);
+    lock?.release?.().catch?.(() => {});
+    ov.remove();
+    document.body.classList.remove('no-scroll');
+    window.removeEventListener('hashchange', close);
+    document.removeEventListener('keydown', onKey);
+    if (opener && document.contains(opener)) opener.focus();
+  };
+  stop.addEventListener('click', close);
+  window.addEventListener('hashchange', close);
+  document.addEventListener('keydown', onKey);
+  stop.focus();
+  gong();
+  ov.classList.add('running');
+  try { lock = await navigator.wakeLock?.request('screen'); } catch { lock = null; }
+  const endAt = Date.now() + minutes * 60000;
+  tick = setInterval(() => {
+    const left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+    clock.textContent = fmtClock(left);
+    if (left === 0) {
+      clearInterval(tick);
+      ov.classList.remove('running');
+      gong();
+      try { navigator.vibrate?.(200); } catch { /* ignore */ }
+      msg.textContent = t().timerDone;
+      ov.querySelector('#tm-status').textContent = t().timerDone;
+      stop.textContent = t().timerClose;
+    }
+  }, 250);
+}
+const STATUS_ICON = {
+  done: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  open: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  locked: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.5 9V6.8a2.5 2.5 0 015 0V9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  missed: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+};
 
 function viewJourney() {
   const { timeline, stay, today, openHour } = state.me;
   if (!timeline.some((i) => i.slot === 'baseline')) return viewBaseline();
-  const done = timeline.filter((i) => i.status === 'done').length;
-  const pct = Math.round((done / timeline.length) * 100);
-  const items = timeline.map((i) => {
+  const allDone = timeline.every((i) => i.status === 'done');
+  const total = totalDays();
+  const todayItem = timeline.find((i) => i.slot !== 'baseline' && i.open_date === today && i.status !== 'locked');
+  const dayNo = todayItem?.day_number || timeline.filter((i) => i.kind === 'Q2' && i.open_date <= today).length;
+  const row = (i) => {
     const [label, sub] = slotLabel(i);
-    let meta = '';
-    let action = '';
-    if (i.status === 'open') { meta = t().openUntil(fmtDate(i.close_date)); action = `<a class="btn sm" href="#/q/${i.id}">${i.kind === 'Q2' ? t().open : t().start}</a>`; }
-    if (i.status === 'locked') meta = t().opensOn(fmtDate(i.open_date), String(openHour).padStart(2, '0'));
-    if (i.status === 'done') action = `<a class="link small" href="#/q/${i.id}">${t().view}</a>`;
-    return `
-      <li class="step ${i.status} ${i.open_date === today && i.slot !== 'baseline' ? 'today' : ''}">
-        <span class="node" aria-hidden="true"></span>
-        <div class="step-body">
-          <div class="step-head"><strong>${esc(label)}</strong><span class="badge ${i.status}">${t()[`st_${i.status}`]}</span></div>
-          <p class="muted small">${esc(sub)}</p>
-          ${meta ? `<p class="small meta">${esc(meta)}</p>` : ''}
-        </div>
-        ${action ? `<div class="step-action">${action}</div>` : ''}
-      </li>`;
-  }).join('');
+    const inner = `<span class="row-text"><strong>${esc(label)}</strong><span class="row-sub">${i === todayItem ? `<b class="today-tag">${t().todayRow}</b> · ` : ''}${esc(sub)}</span></span>
+      <span class="row-status ${i.status}" title="${esc(t()[`st_${i.status}`])}">${STATUS_ICON[i.status] || ''}<span class="sr">${esc(t()[`st_${i.status}`])}</span></span>`;
+    return `<li class="row ${i.status} ${i === todayItem ? 'is-today' : ''}">${i.status === 'locked' ? `<span class="row-link">${inner}</span>` : `<a class="row-link" href="#/q/${i.id}">${inner}</a>`}</li>`;
+  };
+  const todayCard = todayItem ? (() => {
+    const [label, sub] = slotLabel(todayItem);
+    const done = todayItem.status === 'done';
+    return `<a class="today-card ${done ? 'done' : ''}" href="#/q/${todayItem.id}">
+      <span class="today-label">${t().today} · <span class="nowrap">${esc(sub)}</span></span>
+      <strong>${esc(label)}</strong>
+      <span class="btn ${done ? 'ghost' : ''}">${done ? t().view : t().openToday}</span></a>`;
+  })() : '';
   shell(`
-    ${done === timeline.length ? `<div class="card done-all">${t().allDone}</div>` : ''}
-    <ol class="timeline">${items}</ol>`, {
+    ${allDone ? `<div class="card done-all">${t().allDone}</div>` : todayCard}
+    <ol class="rows">${timeline.map(row).join('')}</ol>
+    <p class="footnote">${esc(t().dailyFootnote(String(openHour).padStart(2, '0')))}</p>
+    <details class="how-below"><summary>${t().howItWorks}</summary><p>${esc(t().heroLine)}</p><p>${esc(t().programmeIntro)}</p><p class="credit">${esc(t().credit)}</p></details>
+    <p class="center"><button class="link small" id="logout">${t().logout}</button></p>`, {
     hero: `
       ${stay ? `<p class="kicker">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
       <h1>${t().journeyTitle}</h1>
-      ${CIRCLES}
-      <p class="lede">${esc(t().programmeIntro)}</p>
-      <div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>
-      <p class="kicker">${t().progress(done, timeline.length)}</p>`,
+      ${total && dayNo ? `<div class="progress" role="img" aria-label="${esc(t().dayOf(Math.min(dayNo, total), total))}"><span style="width:${Math.round((Math.min(dayNo, total) / total) * 100)}%"></span></div>
+      <p class="kicker">${t().dayOf(Math.min(dayNo, total), total)}</p>` : ''}`,
   });
 }
-
 async function viewQuestionnaire(id) {
   let inst;
   try { inst = await api(`/instances/${id}`); } catch { go('#/journey'); return; }
   if (inst.status === 'locked') { go('#/journey'); return; }
   const [label, sub] = slotLabel(inst);
   const ro = inst.status !== 'open';
-  const intro = inst.kind === 'Q2' ? t().dailyIntro : inst.slot === 'end' ? t().endIntro : '';
   const d = state.draft[location.hash] || { answers: {} };
   const daily = inst.kind === 'Q2';
-  const med = daily;
-  const p = med ? practiceFor(inst.day_number, totalDays()) : null;
-  const hero = daily
-    ? `<p class="kicker">${esc(t().dayLabel(inst.day_number))}${p?.reinforcement ? ` · ${esc(t().reinforcement)}` : ''} · ${esc(fmtDate(inst.open_date))}</p><h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>`
-    : `<p class="kicker">${esc(sub)}</p><h1>${esc(label)}</h1>`;
-  const head = daily
-    ? `${med ? practiceBlock(inst.day_number) : ''}
-       <div class="evening"><h2>${t().eveningJournal}</h2>
-         ${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${med ? `${esc(t().eveningHint)} ` : ''}${esc(intro)}</p>`}</div>`
-    : `${inst.slot === 'end' ? takeHomeBlock() : ''}<div class="intro">${ro ? `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>` : `<p class="muted">${esc(intro)}</p>`}</div>`;
-  shell(`
-    <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>
-    ${head}
-    ${med && !state.draft[location.hash] ? `<button class="btn ghost" id="reveal">${ro ? t().showAnswers : t().openJournal}</button>` : ''}
-    <form data-kind="${inst.kind}" data-slot="${inst.slot}" id="f" novalidate class="${ro ? 'ro' : ''}" ${med && !state.draft[location.hash] ? 'hidden' : ''}>
-      ${ro && inst.answers ? `<p class="muted small">${t().readOnly}</p>` : ''}
-      ${renderSections(inst.kind, ro ? inst.answers || {} : d.answers, ro, inst.slot, { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) })}
-      ${ro ? '' : saveBar()}
-    </form>`, { hero });
-  wireTimer();
+  const isEnd = inst.slot === 'end';
+  const ctx = { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) };
+  const statusBadge = `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>`;
+
+  if (daily) {
+    const p = practiceFor(inst.day_number, totalDays());
+    const evening = new Date().getHours() >= 17;
+    const collapsed = !state.draft[location.hash];
+    shell(`
+      <div id="practice-view" ${collapsed ? '' : 'hidden'}>
+        ${practiceBlock(inst.day_number)}
+        <div class="evening"><h2>${t().eveningTitle}</h2>${ro ? statusBadge : `<p>${esc(t().eveningShort)}</p>`}</div>
+        <button class="btn ${ro || !evening ? 'ghost' : ''}" id="reveal">${ro ? t().showAnswers : t().openJournalShort}</button>
+        <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>
+      </div>
+      <div id="journal-view" ${collapsed ? 'hidden' : ''}>
+        <p class="back"><button type="button" class="link small" id="to-practice">${t().backToPractice}</button></p>
+        <form data-kind="Q2" data-slot="${inst.slot}" id="f" novalidate class="${ro ? 'ro' : ''}">
+          ${renderSections('Q2', ro ? inst.answers || {} : d.answers, ro, inst.slot, ctx)}
+          ${ro ? '' : `<p class="muted small center jb-note">${t().saveNoteShort}</p>
+            <div class="journal-bar"><div class="jb-top"><span class="jb-count" aria-live="polite"></span><span class="jb-line"><span></span></span></div>
+            <p class="err" id="err" role="alert"></p><button class="btn" id="save">${t().saveShort}</button></div>`}
+        </form>
+      </div>`, {
+      compact: true,
+      hero: `<p class="kicker">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}${p?.reinforcement ? ` · ${esc(t().repeatOf(p.day))}` : ''}</p>
+        <h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>${p ? `<p class="lede theme-line">${esc(tx(p.theme))}</p>` : ''}`,
+    });
+    wireTimer();
+    const pv = root.querySelector('#practice-view');
+    const jv = root.querySelector('#journal-view');
+    const mast = root.querySelector('.masthead');
+    const h1 = mast.querySelector('h1');
+    const dayTitle = h1.textContent;
+    const showJournal = (on) => {
+      jv.hidden = !on; pv.hidden = on;
+      mast.classList.toggle('stepped', on);
+      h1.textContent = on ? t().journalTitle : dayTitle;
+      window.scrollTo(0, 0);
+    };
+    root.querySelector('#to-practice').addEventListener('click', () => showJournal(false));
+    root.querySelector('#reveal').addEventListener('click', () => showJournal(true));
+    if (!jv.hidden) { mast.classList.add('stepped'); h1.textContent = t().journalTitle; }
+    const form = root.querySelector('#f');
+    if (ro) { applyShowIf(form); return; }
+    const count = form.querySelector('.jb-count');
+    const updateCount = () => {
+      const items = [...form.querySelectorAll('.item')].filter((it) => !it.hidden);
+      const done = items.filter((it) => it.querySelector('input:checked') || [...it.querySelectorAll('input[type=number]')].some((x) => x.value !== '')).length;
+      count.textContent = t().answeredOf(done, items.length);
+      form.querySelector('.jb-line span').style.width = `${Math.round((done / Math.max(1, items.length)) * 100)}%`;
+      form.querySelector('#save')?.classList.toggle('ghost', done < items.length);
+    };
+    form.addEventListener('change', () => setTimeout(updateCount));
+    form.addEventListener('input', updateCount);
+    wireForm('Q2', (answers) => api(`/instances/${id}`, { answers }));
+    updateCount();
+    return;
+  } else if (isEnd && ro) {
+    // Departure day, after saving: thank you + take-home card; answers one tap away
+    shell(`
+      ${takeHomeBlock(false)}
+      <button class="btn ghost" id="reveal">${t().showAnswers}</button>
+      <form data-kind="Q1" data-slot="end" id="f" novalidate class="ro" hidden>${renderSections('Q1', inst.answers || {}, true, 'end', ctx)}</form>
+      <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>`, {
+      compact: true, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(t().takeHome)}</h1>`,
+    });
+  } else {
+    // Welcome (read-only) or closing questionnaire: one section per step
+    const intro = isEnd ? t().endIntro : '';
+    shell(`
+      ${ro ? statusBadge : ''}
+      <form data-kind="Q1" data-slot="${inst.slot}" ${ro ? '' : 'data-paged="1"'} id="f" novalidate class="${ro ? 'ro' : ''}">
+        ${ro ? '' : pagerTop()}
+        ${renderSections('Q1', ro ? inst.answers || {} : d.answers, ro, inst.slot, ctx, !ro)}
+        ${ro ? '' : pagerNav()}
+      </form>
+      ${ro ? `<p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>` : ''}`, {
+      compact: true, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
+    });
+  }
   root.querySelector('#reveal')?.addEventListener('click', (e) => {
     e.currentTarget.remove();
     const f = root.querySelector('#f');
     f.hidden = false;
     f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  if (ro) { applyShowIf(root.querySelector('#f')); return; }
-  wireForm(inst.kind, (answers) => api(`/instances/${id}`, { answers }));
+  const form = root.querySelector('#f');
+  if (ro) { applyShowIf(form); return; }
+  wireForm(inst.kind, (answers) => api(`/instances/${id}`, { answers }), isEnd ? `#/q/${id}` : '#/journey');
 }
-
 // ---------- router ----------
 async function route(keepDraft = false) {
   if (!keepDraft) state.draft = {};

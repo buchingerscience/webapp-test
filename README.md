@@ -3,18 +3,18 @@
 A small web app for the **Inner Calm** pilot (meditation during prolonged fasting, Buchinger Wilhelmi).
 Questionnaires follow the study brief *"Flywheel 1 brief on meditation"*, section 18.2. Colours follow the Buchinger Corporate Identity Guidelines (Dark Blue `#000051`, Off-white `#fcfaf2`, secondary colours used sparingly). Typography follows the same guidelines: **Arizona Flare** for headlines and body text, **Neuf** for small titles, section titles and buttons (caps, tracked), and **Edict Display** for quotes only, with Helvetica/Palatino as the fallbacks (also used in emails). The look follows the *Buchinger Times* (marketing's study newsletter): a full-bleed Mid Blue masthead with the Off-white logo (`public/logo-light.svg`) and centred Arizona Flare caps headlines, the Times cover photo on the login/register screens (`public/cover.jpg`), its line art (three circles; a circle with four inward arrows) and pull quotes on Mid Blue.
 
-Live at **https://test.buchinger-science.com** · Admin at **https://test.buchinger-science.com/admin**
+Live at **https://innercalm.buchinger-science.com** · Admin at **https://innercalm.buchinger-science.com/admin**
 
-## The meditation programme: meditation snacks
+## The meditation programme: moments of stillness
 
 Developed with **Gilbert Grimeau**, meditation teacher at Buchinger Wilhelmi (meeting of 9 Nov 2026), with a daily thought from Father **Niklaus Brantschen SJ** (lecture *"Fasting and Silence: Twin Companions"*). The text lives in `shared/programme.js`.
 
-- **Meditation snacks** work like exercise snacks: very short meditations, repeated as often as possible during the day. Every wait (the nurse, the doctor, the bus) is an opportunity. No special place, cushion or posture is needed, and the phone is not forbidden.
+- **Moments of stillness** are very short meditations, repeated as often as possible during the day. Every wait (the nurse, the doctor, the bus) is an opportunity. No special place, cushion or posture is needed, and the phone is not forbidden.
 - **Length grows:** days 1–3 → 1 minute · days 4–6 → 2 minutes · day 7 onwards → 5 minutes.
-- **Day *k* opens at 06:00** with a theme, a Niklaus excerpt, the snack (with `{n}` filled in as the day's length), a built-in timer (1 / 2 / 5 min, soft gong at start and end, records nothing) and a pointer to the clinic's meditation programme (seminars and daily guided meditations) for longer, expert-level practice.
+- **Day *k* opens at 06:00** with a theme, a Niklaus excerpt, the moment of stillness (with `{n}` filled in as the day's length), a built-in timer (1 / 2 / 5 min, soft gong at start and end, records nothing) and a pointer to the clinic's meditation programme (seminars and daily guided meditations) for longer, expert-level practice.
 - **Open end:** days 1–8 are the core programme. From day 9, days 2–8 repeat in a cycle labelled **Reinforcement** (5 minutes each) for as long as the stay lasts. Nothing in the app refers to breaking the fast, because fast lengths differ.
-- **Departure day:** the closing questionnaire opens with a "Taking it home" card (link the snacks to home routines: teeth, the first minutes in bed, meals without the phone).
-- **Evening journal:** "how many meditation snacks yesterday" (none / 1–2 / 3–5 / 6–10 / >10), and separately whether the guest attended the clinic's meditation programme and for how many minutes. Class attendance is self-selected, so treat it as a covariate.
+- **Departure day:** the closing questionnaire opens with a "Taking it home" card (link the moments of stillness to home routines: teeth, the first minutes in bed, meals without the phone).
+- **Evening journal:** "how many moments of stillness yesterday" (none / 1–2 / 3–5 / 6–10 / >10), and separately whether the guest attended the clinic's meditation programme and for how many minutes. Class attendance is self-selected, so treat it as a covariate.
 - **No gamification:** no quizzes, badges, streaks, points or sharing, and the only email is the 06:00 one.
 
 ## What a participant sees
@@ -92,7 +92,7 @@ ADMIN_PASSWORD=localtest123 npm run dev     # http://localhost:3000
 | Path | Purpose |
 |---|---|
 | `shared/questionnaires.js` | All items, scales and translations; used by both browser and server |
-| `shared/programme.js` | The meditation-snack programme (EN/DE/FR/ES), the day-to-practice rule and snack lengths |
+| `shared/programme.js` | The moment-of-stillness programme (EN/DE/FR/ES), the day-to-practice rule and practice lengths |
 | `server.js` | API: accounts, journey, answers, admin |
 | `src/schedule.js` | Builds the journey from the stay dates |
 | `src/scheduler.js` | Checks every minute and sends the 06:00 emails |

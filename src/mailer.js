@@ -24,7 +24,7 @@ const T = {
     reinforcement: 'Reinforcement',
     dailySubject: (n, title) => title ? `Inner Calm · Day ${n} — ${title}` : `Inner Calm · Day ${n}: your daily journal is open`,
     dailyBody: (n, title, min) => title
-      ? `Good morning,<br><br>Your meditation snack for <b>day ${n}</b> is ready: <b>${title}</b>, ${min}. Do as many as you can today: every wait is an opportunity.<br><br>This evening, take 90 seconds for your journal.`
+      ? `Good morning,<br><br>Your moment of stillness for <b>day ${n}</b> is ready: <b>${title}</b>, ${min}. Return to it as often as you can today: every wait is an opportunity.<br><br>This evening, take 90 seconds for your journal.`
       : `Good morning,<br><br>Your journal for <b>day ${n}</b> is now open. Take 90 seconds this evening to answer it — thinking about how your day went.`,
     endSubject: 'Inner Calm · Your closing questionnaire',
     endBody: 'Your stay is coming to an end. Thank you for taking part! One last, slightly longer questionnaire is waiting for you — it helps us understand how your experience has changed.',
@@ -38,7 +38,7 @@ const T = {
     reinforcement: 'Festigung',
     dailySubject: (n, title) => title ? `Inner Calm · Tag ${n} — ${title}` : `Inner Calm · Tag ${n}: Ihr Tagesjournal ist geöffnet`,
     dailyBody: (n, title, min) => title
-      ? `Guten Morgen,<br><br>Ihr Meditationssnack für <b>Tag ${n}</b> ist bereit: <b>${title}</b>, ${min}. Machen Sie heute so viele, wie Sie können: Jedes Warten ist eine Gelegenheit.<br><br>Heute Abend nehmen Sie sich 90 Sekunden für Ihr Journal.`
+      ? `Guten Morgen,<br><br>Ihr Moment der Stille für <b>Tag ${n}</b> ist bereit: <b>${title}</b>, ${min}. Kehren Sie heute so oft wie möglich dazu zurück: Jedes Warten ist eine Gelegenheit.<br><br>Heute Abend nehmen Sie sich 90 Sekunden für Ihr Journal.`
       : `Guten Morgen,<br><br>Ihr Journal für <b>Tag ${n}</b> ist jetzt geöffnet. Nehmen Sie sich heute Abend 90 Sekunden Zeit und denken Sie dabei an Ihren Tag.`,
     endSubject: 'Inner Calm · Ihr Abschlussfragebogen',
     endBody: 'Ihr Aufenthalt geht zu Ende. Vielen Dank für Ihre Teilnahme! Ein letzter, etwas längerer Fragebogen wartet auf Sie – er hilft uns zu verstehen, wie sich Ihr Erleben verändert hat.',
@@ -52,7 +52,7 @@ const T = {
     reinforcement: 'Consolidation',
     dailySubject: (n, title) => title ? `Inner Calm · Jour ${n} — ${title}` : `Inner Calm · Jour ${n} : votre journal du jour est ouvert`,
     dailyBody: (n, title, min) => title
-      ? `Bonjour,<br><br>Votre snack de méditation du <b>jour ${n}</b> est prêt : <b>${title}</b>, ${min}. Faites-en autant que possible aujourd’hui : chaque attente est une occasion.<br><br>Ce soir, prenez 90 secondes pour votre journal.`
+      ? `Bonjour,<br><br>Votre instant de quiétude du <b>jour ${n}</b> est prêt : <b>${title}</b>, ${min}. Revenez-y aussi souvent que possible aujourd’hui : chaque attente est une occasion.<br><br>Ce soir, prenez 90 secondes pour votre journal.`
       : `Bonjour,<br><br>Votre journal du <b>jour ${n}</b> est maintenant ouvert. Prenez 90 secondes ce soir pour y répondre, en pensant à votre journée.`,
     endSubject: 'Inner Calm · Votre questionnaire de clôture',
     endBody: 'Votre séjour touche à sa fin. Merci pour votre participation ! Un dernier questionnaire, un peu plus long, vous attend – il nous aide à comprendre comment votre expérience a évolué.',
@@ -66,7 +66,7 @@ const T = {
     reinforcement: 'Refuerzo',
     dailySubject: (n, title) => title ? `Inner Calm · Día ${n} — ${title}` : `Inner Calm · Día ${n}: su diario de hoy está abierto`,
     dailyBody: (n, title, min) => title
-      ? `Buenos días:<br><br>Su snack de meditación del <b>día ${n}</b> está listo: <b>${title}</b>, ${min}. Haga hoy tantos como pueda: cada espera es una oportunidad.<br><br>Esta noche, dedique 90 segundos a su diario.`
+      ? `Buenos días:<br><br>Su momento de quietud del <b>día ${n}</b> está listo: <b>${title}</b>, ${min}. Vuelva a él hoy tantas veces como pueda: cada espera es una oportunidad.<br><br>Esta noche, dedique 90 segundos a su diario.`
       : `Buenos días:<br><br>Su diario del <b>día ${n}</b> ya está abierto. Dedique 90 segundos esta noche a responderlo, pensando en cómo ha ido su día.`,
     endSubject: 'Inner Calm · Su cuestionario final',
     endBody: 'Su estancia llega a su fin. ¡Gracias por participar! Le espera un último cuestionario, algo más largo, que nos ayuda a entender cómo ha cambiado su experiencia.',

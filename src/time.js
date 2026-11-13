@@ -2,6 +2,8 @@
 // Using Intl keeps this correct across summer/winter time changes.
 export const STUDY_TZ = process.env.STUDY_TZ || 'Europe/Berlin';
 export const OPEN_HOUR = Number(process.env.OPEN_HOUR ?? 6);
+// TEST ONLY: UNLOCK_ALL_DAYS=1 opens every day of the journey at once (never set this on the live server).
+export const UNLOCK_ALL = process.env.UNLOCK_ALL_DAYS === '1';
 
 const fmt = new Intl.DateTimeFormat('en-CA', {
   timeZone: STUDY_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
@@ -32,7 +34,7 @@ export function hasOpened(openDate, now = localNow()) {
 
 export function statusOf(inst, now = localNow()) {
   if (inst.completed_at) return 'done';
-  if (!hasOpened(inst.open_date, now)) return 'locked';
+  if (!hasOpened(inst.open_date, now)) return UNLOCK_ALL ? 'open' : 'locked';
   if (now.date <= inst.close_date) return 'open';
   return 'missed';
 }

@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "local": "UNLOCK_ALL_DAYS=1 ADMIN_PASSWORD=localtest123 PORT=3001 node --watch server.js"
   },
   "engines": {
     "node": ">=20"

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { db, nowIso, DB_PATH } from './src/db.js';
-import { localNow, statusOf, isDate, daysBetween, OPEN_HOUR, STUDY_TZ } from './src/time.js';
+import { localNow, statusOf, isDate, daysBetween, OPEN_HOUR, STUDY_TZ, UNLOCK_ALL } from './src/time.js';
 import { rebuildSchedule, MAX_STAY_DAYS } from './src/schedule.js';
 import { sendResetEmail, smtpConfigured, APP_URL } from './src/mailer.js';
 import { startScheduler, tick } from './src/scheduler.js';
@@ -146,10 +146,31 @@ app.post('/api/reset', limit(10, 15 * 60000), (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- audio guides (Gilbert Grimeau) ----------
+// Files live in public/audio/<lang>/<name>.m4a. A language appears in the app as soon as its file is there:
+// drop e.g. public/audio/fr/meditation-10.m4a in place and restart — no code change needed.
+const AUDIO_NAMES = ['intro', 'meditation-5', 'meditation-10', 'meditation-20', 'farewell'];
+const AUDIO_EXT = ['m4a', 'mp3'];
+function audioManifest() {
+  const out = {};
+  for (const name of AUDIO_NAMES) {
+    out[name] = {};
+    for (const l of LANGS) {
+      const ext = AUDIO_EXT.find((e) => fs.existsSync(path.resolve('public', 'audio', l, `${name}.${e}`)));
+      if (!ext) { out[name][l] = null; continue; }
+      // ?v= changes when a recording is replaced, so phones that saved the old one fetch the new one
+      const st = fs.statSync(path.resolve('public', 'audio', l, `${name}.${ext}`));
+      out[name][l] = `/audio/${l}/${name}.${ext}?v=${st.size.toString(36)}${Math.round(st.mtimeMs).toString(36)}`;
+    }
+  }
+  return out;
+}
+app.get('/api/config', (req, res) => res.json({ audio: audioManifest(), testMode: UNLOCK_ALL }));
+
 // ---------- participant ----------
 app.get('/api/me', requireUser, (req, res) => {
   const u = req.user;
-  res.json({ user: { email: u.email, code: u.participant_code, language: u.language }, ...journey(u.id) });
+  res.json({ user: { email: u.email, code: u.participant_code, language: u.language }, testMode: UNLOCK_ALL, ...journey(u.id) });
 });
 
 app.post('/api/language', requireUser, (req, res) => {
@@ -289,6 +310,7 @@ app.use(versioned('public', { '/': '/index.html', '/admin': '/admin.html' }), ex
 
 app.listen(PORT, () => {
   console.log(`Inner Calm listening on ${PORT} · db ${DB_PATH} · SMTP ${smtpConfigured ? 'on' : 'OFF (emails only logged)'} · ${STUDY_TZ} ${OPEN_HOUR}:00`);
+  if (UNLOCK_ALL) console.warn('TEST MODE: UNLOCK_ALL_DAYS=1, every day of every journey is open. Never use this on the live server.');
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set — the admin page is disabled.');
   startScheduler();
 });

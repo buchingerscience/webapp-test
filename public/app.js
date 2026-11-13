@@ -11,6 +11,8 @@ const state = {
   lang: LANGS.includes(store.get('ic_lang')) ? store.get('ic_lang') : (LANGS.find((l) => navigator.language?.startsWith(l)) || 'en'),
   me: null,
   draft: {},
+  config: null, // { audio: { intro: { en: url|null, … }, … }, testMode }
+  medOpen: null, // which meditation panel is open ('silent' | 'm5' | 'm10' | 'm20')
 };
 const t = () => UI[state.lang];
 // Navigate, re-rendering even if we are already on that address
@@ -59,13 +61,14 @@ const INWARD = `<svg class="inward-art" viewBox="0 0 400 400" aria-hidden="true"
   <path d="M8 8 L58 58 M58 40 V58 H40"/><path d="M392 8 L342 58 M342 40 V58 H360"/>
   <path d="M8 392 L58 342 M58 360 V342 H40"/><path d="M392 392 L342 342 M342 360 V342 H360"/></g></svg>`;
 
-function shell(inner, { narrow = false, hero = '', cover = false, compact = false } = {}) {
+function shell(inner, { narrow = false, hero = '', cover = false, compact = false, medbar = null } = {}) {
   const langOpts = LANGS.map((l) => `<option value="${l}" ${l === state.lang ? 'selected' : ''}>${LANG_LABELS[l]}</option>`).join('');
   const logo = `<a href="#/journey" class="brand" aria-label="Inner Calm"><img src="/logo-light.svg" alt="Buchinger"></a>`;
   const barLeft = cover
     ? `<span class="mast-label">${t().study}</span>`
     : `<a href="#/journey" class="brand-sm" aria-label="Inner Calm"><img src="/logo-light.svg" alt="Buchinger"></a>`;
   root.innerHTML = typoHtml(`
+    ${state.config?.testMode ? `<div class="test-banner" role="note">${esc(t().testBanner)}</div>` : ''}
     <header class="masthead ${cover ? 'cover' : ''} ${compact ? 'compact' : ''}">
       <div class="mast-bar">
         ${barLeft}
@@ -75,7 +78,8 @@ function shell(inner, { narrow = false, hero = '', cover = false, compact = fals
       <div class="mast-inner">${hero}</div>
       ${cover ? logo : ''}
     </header>
-    <main class="${narrow ? 'narrow' : ''}">${state.flash ? `<p class="flash" role="status">${esc(state.flash)}</p>` : ''}${inner}</main>`);
+    ${medbar ? medBar() : ''}
+    <main class="${narrow ? 'narrow' : ''}">${state.flash ? `<p class="flash" role="status">${esc(state.flash)}</p>` : ''}${inner}${state.me && !cover ? pageFooter() : ''}</main>`);
   if (state.flash) { state.flash = null; setTimeout(() => root.querySelector('.flash')?.classList.add('gone'), 3500); }
   root.querySelector('#lang').addEventListener('change', (e) => setLang(e.target.value));
   root.querySelector('#logout')?.addEventListener('click', async () => {
@@ -84,6 +88,17 @@ function shell(inner, { narrow = false, hero = '', cover = false, compact = fals
     go('#/login');
   });
   window.scrollTo?.(0, 0);
+  if (medbar) wireMedBar(medbar);
+  wireAudioCards();
+}
+// Always at the bottom once logged in, so nobody gets lost: back to the journey (main menu) and log out.
+function pageFooter() {
+  const onJourney = ['', '#', '#/', '#/journey'].includes(location.hash);
+  const hasBaseline = (state.me?.timeline || []).some((i) => i.slot === 'baseline');
+  return `<nav class="page-footer" aria-label="${esc(t().journeyTitle)}">
+    ${!onJourney && hasBaseline ? `<a href="#/journey" class="btn ghost pf-home">${esc(t().backToJourney)}</a>` : ''}
+    <button type="button" class="link pf-logout" id="logout">${esc(t().logout)}</button>
+  </nav>`;
 }
 function setLang(l) {
   saveDraft();
@@ -386,9 +401,13 @@ const prevDay = (iso) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(
 const paras = (arr) => (arr || []).map((p) => `<p>${esc(p)}</p>`).join('');
 const QUOTES = { en: ['“', '”'], de: ['„', '“'], fr: ['« ', ' »'], es: ['«', '»'] };
 // Quote with language-correct marks; only the first paragraph is shown, the rest is one tap away.
-function quoteBlock(parts) {
+function quoteBlock(parts, full = false) {
   const [o, c] = QUOTES[state.lang] || QUOTES.en;
   const ps = (parts || []).map((x, k, a) => `${k === 0 ? o : ''}${x}${k === a.length - 1 ? c : ''}`);
+  if (full) {
+    return `<blockquote class="pull">${paras(ps)}
+    <footer><span class="who">${esc(t().quoteBy)}</span><span class="role">${esc(t().quoteRole)}</span></footer></blockquote>`;
+  }
   const rest = ps.slice(1);
   return `<blockquote class="pull"><p>${esc(ps[0] || '')}${rest.length ? `<span class="q-preview-end">…${esc(c.trim())}</span>` : ''}</p>
     ${rest.length ? `<details class="more"><summary>${esc(t().readFull)}</summary>${paras(rest)}</details>` : ''}
@@ -397,22 +416,19 @@ function quoteBlock(parts) {
 function practiceBlock(dayNumber) {
   const p = practiceFor(dayNumber, totalDays());
   if (!p) return `<div class="card note">${esc(t().programmeEnded)}</div>`;
-  const steps = (tx(p.snack.steps) || []).map((x) => fillMinutes(x, state.lang, p.minutes));
+  // The day opens with Niklaus Brantschen's thought. The moment of stillness (steps + timer) unrolls
+  // only from the "Meditate 1–2 min" tile; the button below the quote opens that same panel.
   return `
-    <article class="practice">
-      <section class="snack">
-        <p class="eyebrow">${t().exercise} <span class="chip">${t().minutesChip(p.minutes)}</span></p>
-        <h3>${esc(tx(p.snack.title))}</h3>
-        ${timerBlock(p.minutes)}
-        ${p.reinforcement ? `<p class="reinforce">${esc(t().reinforceIntro)}</p>` : ''}
-        <ol class="steps">${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
-        <p class="repeat">${esc(t().repeatShort)}</p>
-        ${p.snack.also ? `<p class="also">${esc(tx(p.snack.also))}</p>` : ''}
-      </section>
+    <article class="practice thought-first">
       <section class="thought">
         <p class="eyebrow">${esc(t().thoughtLabel)}</p>
-        ${quoteBlock(tx(p.quote))}
+        ${quoteBlock(tx(p.quote), true)}
       </section>
+      <div class="stillness-teaser">
+        <button type="button" class="teaser-btn" data-open-med="silent">${ICON.timer}
+          <span class="tz-text"><span class="tz-label">${esc(t().exercise)}</span><span class="tz-title">${esc(tx(p.snack.title))} <span class="chip">${esc(t().minutesChip(p.minutes))}</span></span></span>
+          <span class="tz-arrow" aria-hidden="true">↑</span></button>
+      </div>
       ${dayNumber === 1 ? deeperBlock() : `<p class="deeper-short">${esc(t().deeperShort)}</p>`}
     </article>`;
 }
@@ -439,8 +455,8 @@ function takeHomeBlock(withLabel = true) {
 // ---------- snack timer (records nothing) ----------
 const fmtClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-function timerBlock(minutes) {
-  const opts = [1, 2, 5].map((m) => `<button type="button" class="tm-opt${m === minutes ? ' on' : ''}" data-min="${m}" aria-pressed="${m === minutes}">${t().minutesChip(m)}</button>`).join('');
+function timerBlock(minutes, lengths = [1, 2, 5]) {
+  const opts = lengths.map((m) => `<button type="button" class="tm-opt${m === minutes ? ' on' : ''}" data-min="${m}" aria-pressed="${m === minutes}">${t().minutesChip(m)}</button>`).join('');
   return `
       <div class="launcher" id="snack-timer" data-min="${minutes}">
         <button type="button" class="btn tm-start">${esc(t().startTimer(minutes))}</button>
@@ -486,6 +502,7 @@ function wireTimer() {
 }
 
 async function openTimer(minutes) {
+  stopAudio();
   const ov = document.createElement('div');
   ov.className = 'tm-overlay';
   ov.setAttribute('role', 'dialog');
@@ -538,6 +555,255 @@ async function openTimer(minutes) {
     }
   }, 250);
 }
+// ---------- audio guides by Gilbert Grimeau + meditation bar ----------
+const ICON = {
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>',
+  back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7L6 12l5 5M18 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  fwd: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 7l5 5-5 5M6 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  headphones: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0116 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3.5" y="14" width="4" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="16.5" y="14" width="4" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  timer: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 13.5V9.5M10 3h4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+};
+const GUIDES = {
+  intro: { file: 'intro' },
+  farewell: { file: 'farewell' },
+  m5: { file: 'meditation-5', minutes: 5 },
+  m10: { file: 'meditation-10', minutes: 10 },
+  m20: { file: 'meditation-20', minutes: 20 },
+};
+function guideMeta(key) {
+  const g = GUIDES[key];
+  if (g.minutes) return { eyebrow: t().guidedEyebrow(g.minutes), title: t().guidedTitle(g.minutes), text: t().byGilbert };
+  return { eyebrow: t()[`${key}Eyebrow`], title: t()[`${key}Title`], text: t()[`${key}Text`] };
+}
+const audioUrl = (key, l) => state.config?.audio?.[GUIDES[key].file]?.[l] || null;
+const capital = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+const langOverride = {}; // key -> language picked when the person's language has no recording yet
+const durations = {}; // src -> seconds
+const player = { el: null, src: null, key: null, pendingSeek: null };
+// ---- keep a guide on the phone once it has been started (weak wifi at the clinic) ----
+// sw.js answers /audio/ requests from this cache; only guides a person actually plays are downloaded.
+const AUDIO_CACHE = 'ic-audio-v1';
+const canCache = 'serviceWorker' in navigator && 'caches' in window && window.isSecureContext;
+if (canCache) navigator.serviceWorker.register('/sw.js').catch(() => {});
+const offline = {}; // absolute url -> 'saving' | 'saved'
+const absUrl = (u) => new URL(u, location.href).href;
+async function checkCached(url) {
+  if (!canCache || offline[absUrl(url)]) return;
+  try { if (await (await caches.open(AUDIO_CACHE)).match(absUrl(url))) { offline[absUrl(url)] = 'saved'; syncAudioUi(); } } catch { /* ignore */ }
+}
+async function cacheAudio(url) {
+  const key = absUrl(url);
+  if (!canCache || offline[key]) return;
+  offline[key] = 'saving';
+  syncAudioUi();
+  try {
+    const cache = await caches.open(AUDIO_CACHE);
+    if (!(await cache.match(key))) {
+      navigator.storage?.persist?.().catch(() => {});
+      const res = await fetch(key, { cache: 'no-store' }); // whole file, in the background while it already plays
+      if (res.status !== 200) throw new Error('download failed');
+      await cache.put(key, res);
+      // remove an older recording of the same guide
+      const path = new URL(key).pathname;
+      for (const k of await cache.keys()) if (new URL(k.url).pathname === path && k.url !== key) await cache.delete(k);
+    }
+    offline[key] = 'saved';
+  } catch {
+    delete offline[key]; // try again next time it is played
+  }
+  syncAudioUi();
+}
+const introSeenKey = () => `ic_intro_seen_${state.me?.user?.code || 'anon'}`;
+
+function audioCard(key, { extra = '', compact = false } = {}) {
+  const m = guideMeta(key);
+  const lang = langOverride[key] && audioUrl(key, langOverride[key]) ? langOverride[key] : state.lang;
+  const url = audioUrl(key, lang);
+  const head = `<p class="eyebrow">${esc(m.eyebrow)}</p>${compact ? '' : `<h3>${esc(m.title)}</h3>`}<p class="ac-text">${esc(m.text)}</p>`;
+  if (!url) {
+    const alts = LANGS.filter((l) => audioUrl(key, l));
+    return `<section class="audio-card missing" data-audio="${key}">${head}
+      <p class="ac-missing">${esc(t().audioMissing(t().langNames[state.lang]))}</p>
+      ${alts.length ? `<p class="ac-alt"><span>${esc(t().listenIn)}</span> ${alts.map((l) => `<button type="button" class="ac-lang" data-lang="${l}">${esc(capital(t().langNames[l]))}</button>`).join('')}</p>` : ''}
+      ${extra}</section>`;
+  }
+  const dur = durations[url];
+  return `<section class="audio-card" data-audio="${key}" data-src="${esc(url)}">${head}
+    <div class="ac-player">
+      <button type="button" class="ac-play" aria-label="${esc(t().play)}">${ICON.play}</button>
+      <div class="ac-track">
+        <input type="range" class="ac-seek" min="0" max="1000" step="1" value="0" aria-label="${esc(t().position)}">
+        <div class="ac-times"><span class="ac-cur">0:00</span><span class="ac-lang-tag">${esc(t().audioIn(t().langNames[lang]))}</span><span class="ac-dur">${dur ? fmtClock(Math.round(dur)) : '–:––'}</span></div>
+      </div>
+    </div>
+    <p class="ac-offline" aria-live="polite"></p>
+    <div class="ac-skips"><button type="button" class="ac-skip" data-skip="-15" aria-label="${esc(t().back15)}">${ICON.back}<span>15 s</span></button><button type="button" class="ac-skip" data-skip="15" aria-label="${esc(t().fwd15)}"><span>15 s</span>${ICON.fwd}</button></div>
+    ${extra}</section>`;
+}
+
+function audioEl() {
+  if (player.el) return player.el;
+  const el = new Audio();
+  el.preload = 'auto';
+  ['play', 'pause', 'timeupdate', 'ended', 'loadedmetadata', 'seeked'].forEach((ev) => el.addEventListener(ev, () => {
+    if (ev === 'loadedmetadata') {
+      if (Number.isFinite(el.duration)) durations[player.src] = el.duration;
+      if (player.pendingSeek != null) { el.currentTime = player.pendingSeek * el.duration; player.pendingSeek = null; }
+    }
+    if (ev === 'play' && player.key === 'intro') store.set(introSeenKey(), '1');
+    syncAudioUi();
+  }));
+  player.el = el;
+  return el;
+}
+function stopAudio() {
+  if (!player.el) return;
+  player.el.pause();
+  player.el.removeAttribute('src');
+  player.el.load();
+  player.src = null;
+  player.key = null;
+}
+function loadAudio(card) {
+  const el = audioEl();
+  if (player.src === card.dataset.src) return el;
+  el.src = card.dataset.src;
+  player.src = card.dataset.src;
+  player.key = card.dataset.audio;
+  try {
+    const m = guideMeta(player.key);
+    navigator.mediaSession.metadata = new MediaMetadata({ title: m.title, artist: 'Gilbert Grimeau', album: 'Inner Calm · Buchinger Wilhelmi',
+      artwork: [{ src: '/cover.jpg', sizes: '640x758', type: 'image/jpeg' }] });
+  } catch { /* no media session */ }
+  return el;
+}
+function syncAudioUi() {
+  root.querySelectorAll('.audio-card[data-src]').forEach((card) => {
+    const mine = player.src === card.dataset.src;
+    const el = player.el;
+    const playing = mine && el && !el.paused && !el.ended;
+    const btn = card.querySelector('.ac-play');
+    btn.innerHTML = playing ? ICON.pause : ICON.play;
+    btn.setAttribute('aria-label', playing ? t().pause : t().play);
+    card.classList.toggle('playing', playing);
+    const dur = durations[card.dataset.src];
+    if (dur) card.querySelector('.ac-dur').textContent = fmtClock(Math.round(dur));
+    const seek = card.querySelector('.ac-seek');
+    if (mine && el && dur && document.activeElement !== seek) {
+      seek.value = Math.round((el.currentTime / dur) * 1000);
+      card.querySelector('.ac-cur').textContent = fmtClock(Math.floor(el.currentTime));
+    } else if (!mine) {
+      seek.value = 0;
+      card.querySelector('.ac-cur').textContent = '0:00';
+    }
+    seek.style.setProperty('--pct', `${seek.value / 10}%`);
+    const off = offline[absUrl(card.dataset.src)];
+    const offEl = card.querySelector('.ac-offline');
+    offEl.className = `ac-offline ${off || ''}`;
+    offEl.textContent = off === 'saved' ? t().offlineSaved : off === 'saving' ? t().offlineSaving : '';
+  });
+}
+function wireAudioCards() {
+  root.querySelectorAll('.audio-card').forEach((card) => {
+    if (card.dataset.wired) return;
+    card.dataset.wired = '1';
+    card.querySelectorAll('.ac-lang').forEach((b) => b.addEventListener('click', () => {
+      langOverride[card.dataset.audio] = b.dataset.lang;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = typoHtml(audioCard(card.dataset.audio, { extra: card.dataset.extra || '' }));
+      const fresh = tmp.firstElementChild;
+      card.replaceWith(fresh);
+      wireAudioCards();
+      fresh.querySelector('.ac-play')?.click();
+    }));
+    if (!card.dataset.src) return;
+    const src = card.dataset.src;
+    if (!durations[src]) { // read the length without downloading the file
+      const probe = new Audio();
+      probe.preload = 'metadata';
+      probe.addEventListener('loadedmetadata', () => { if (Number.isFinite(probe.duration)) { durations[src] = probe.duration; syncAudioUi(); } probe.removeAttribute('src'); });
+      probe.src = src;
+    }
+    checkCached(src);
+    card.querySelector('.ac-play').addEventListener('click', () => {
+      const el = loadAudio(card);
+      if (el.paused || el.ended) { el.play().catch(() => {}); cacheAudio(src); } else el.pause();
+    });
+    const seek = card.querySelector('.ac-seek');
+    seek.addEventListener('input', () => {
+      seek.style.setProperty('--pct', `${seek.value / 10}%`);
+      const dur = durations[src];
+      if (dur) card.querySelector('.ac-cur').textContent = fmtClock(Math.floor((seek.value / 1000) * dur));
+    });
+    seek.addEventListener('change', () => {
+      const el = loadAudio(card);
+      const f = seek.value / 1000;
+      if (Number.isFinite(el.duration) && el.duration > 0) el.currentTime = f * el.duration; else player.pendingSeek = f;
+      if (el.paused) el.play().catch(() => {});
+      cacheAudio(src);
+    });
+    card.querySelectorAll('.ac-skip').forEach((b) => b.addEventListener('click', () => {
+      const el = loadAudio(card);
+      if (Number.isFinite(el.duration)) el.currentTime = Math.max(0, Math.min(el.duration - 0.5, el.currentTime + Number(b.dataset.skip)));
+      syncAudioUi();
+    }));
+  });
+  syncAudioUi();
+}
+
+// Four tiles under the header: 1–2 min silent timer, then Gilbert's 5, 10 and 20 minute guided meditations.
+const MED_TILES = [{ id: 'silent' }, { id: 'm5', min: 5 }, { id: 'm10', min: 10 }, { id: 'm20', min: 20 }];
+function medBar() {
+  return `<nav class="medbar" aria-label="${esc(t().medBarLabel)}">
+    <div class="medbar-tiles">${MED_TILES.map((x) => `
+      <button type="button" class="med-tile${state.medOpen === x.id ? ' on' : ''}" data-med="${x.id}" aria-expanded="${state.medOpen === x.id}" aria-controls="med-panel">
+        <span class="mt-icon">${x.min ? ICON.headphones : ICON.timer}</span>
+        <span class="mt-verb">${esc(t().medMeditate)}</span><span class="mt-len">${esc(x.min ? t().medMin(x.min) : t().med12)}</span>
+      </button>`).join('')}</div>
+    <div class="med-panel" id="med-panel" hidden></div>
+  </nav>`;
+}
+function stillnessBody(p, lengths) {
+  const steps = (tx(p.snack.steps) || []).map((x) => fillMinutes(x, state.lang, p.minutes));
+  return `<section class="med-silent snack">
+    <p class="eyebrow">${esc(t().exercise)}</p>
+    <h3>${esc(tx(p.snack.title))} <span class="chip">${esc(t().minutesChip(p.minutes))}</span></h3>
+    ${timerBlock(p.minutes, lengths)}
+    ${p.reinforcement ? `<p class="reinforce">${esc(t().reinforceIntro)}</p>` : ''}
+    <ol class="steps">${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+    <p class="repeat">${esc(t().repeatShort)}</p>
+    ${p.snack.also ? `<p class="also">${esc(tx(p.snack.also))}</p>` : ''}
+  </section>`;
+}
+function wireMedBar(ctx) {
+  const bar = root.querySelector('.medbar');
+  if (!bar) return;
+  const panel = bar.querySelector('#med-panel');
+  const minutes = ctx.minutes || 1;
+  const lengths = [...new Set([1, 2, minutes])].sort((a, b) => a - b);
+  const open = (id, scroll = false) => {
+    if (state.medOpen && state.medOpen !== id && GUIDES[state.medOpen] && player.key === state.medOpen) stopAudio();
+    state.medOpen = id;
+    bar.querySelectorAll('.med-tile').forEach((b) => { const on = b.dataset.med === id; b.classList.toggle('on', on); b.setAttribute('aria-expanded', String(on)); });
+    if (!id) { panel.hidden = true; panel.innerHTML = ''; return; }
+    const body = id === 'silent'
+      ? (ctx.practice ? stillnessBody(ctx.practice, lengths) : `<section class="med-silent"><p class="eyebrow">${esc(t().exercise)}</p><h3>${esc(t().silentTitle)}</h3><p class="ac-text">${esc(t().silentText)}</p>${timerBlock(minutes, lengths)}</section>`)
+      : audioCard(id, { compact: false });
+    panel.innerHTML = typoHtml(`<button type="button" class="med-close" aria-label="${esc(t().closePanel)}">${ICON.close}</button>${body}`);
+    panel.hidden = false;
+    panel.querySelector('.med-close').addEventListener('click', () => { if (player.key === id) stopAudio(); open(null); bar.querySelector(`[data-med="${id}"]`).focus(); });
+    if (id === 'silent') wireTimer(); else wireAudioCards();
+    if (scroll) bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  bar.querySelectorAll('.med-tile').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.med;
+    if (state.medOpen === id) { if (player.key === id) stopAudio(); open(null); } else open(id);
+  }));
+  root.querySelectorAll('[data-open-med]').forEach((b) => b.addEventListener('click', () => open(b.dataset.openMed, true)));
+  if (state.medOpen) open(state.medOpen);
+}
 const STATUS_ICON = {
   done: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
   open: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
@@ -558,6 +824,9 @@ function viewJourney() {
       <span class="row-status ${i.status}" title="${esc(t()[`st_${i.status}`])}">${STATUS_ICON[i.status] || ''}<span class="sr">${esc(t()[`st_${i.status}`])}</span></span>`;
     return `<li class="row ${i.status} ${i === todayItem ? 'is-today' : ''}">${i.status === 'locked' ? `<span class="row-link">${inner}</span>` : `<a class="row-link" href="#/q/${i.id}">${inner}</a>`}</li>`;
   };
+  const lastDay = timeline.find((i) => i.kind === 'Q2' && i.day_number === total);
+  const farewellToday = todayItem && (todayItem.slot === 'end' || todayItem === lastDay);
+  const todayP = todayItem?.kind === 'Q2' ? practiceFor(todayItem.day_number, total) : null;
   const todayCard = todayItem ? (() => {
     const [label, sub] = slotLabel(todayItem);
     const done = todayItem.status === 'done';
@@ -568,10 +837,12 @@ function viewJourney() {
   })() : '';
   shell(`
     ${allDone ? `<div class="card done-all">${t().allDone}</div>` : todayCard}
+    ${farewellToday ? audioCard('farewell') : ''}
     <ol class="rows">${timeline.map(row).join('')}</ol>
     <p class="footnote">${esc(t().dailyFootnote(String(openHour).padStart(2, '0')))}</p>
-    <details class="how-below"><summary>${t().howItWorks}</summary><p>${esc(t().heroLine)}</p><p>${esc(t().programmeIntro)}</p><p class="credit">${esc(t().credit)}</p></details>
-    <p class="center"><button class="link small" id="logout">${t().logout}</button></p>`, {
+    <details class="how-below"><summary>${t().howItWorks}</summary><p>${esc(t().heroLine)}</p><p>${esc(t().programmeIntro)}</p>${audioCard('intro')}<p class="credit">${esc(t().credit)}</p></details>
+    `, {
+    medbar: { minutes: todayP?.minutes || 1, practice: todayP },
     hero: `
       ${stay ? `<p class="kicker">${esc(t().stayRange(fmtDate(stay.arrival_date, { day: 'numeric', month: 'long' }), fmtDate(stay.departure_date, { day: 'numeric', month: 'long', year: 'numeric' })))}</p>` : ''}
       <h1>${t().journeyTitle}</h1>
@@ -594,13 +865,15 @@ async function viewQuestionnaire(id) {
   if (daily) {
     const p = practiceFor(inst.day_number, totalDays());
     const evening = new Date().getHours() >= 17;
+    const showIntro = inst.day_number === 1 || !store.get(introSeenKey());
     const collapsed = !state.draft[location.hash];
     shell(`
       <div id="practice-view" ${collapsed ? '' : 'hidden'}>
+        ${showIntro ? `<div class="intro-day">${audioCard('intro')}${inst.day_number === 1 ? '' : `<p class="ac-foot"><button type="button" class="link small" id="hide-intro">${esc(t().hideIntro)}</button> · ${esc(t().introLater)}</p>`}</div>` : ''}
+        ${inst.day_number === totalDays() ? audioCard('farewell') : ''}
         ${practiceBlock(inst.day_number)}
         <div class="evening"><h2>${t().eveningTitle}</h2>${ro ? statusBadge : `<p>${esc(t().eveningShort)}</p>`}</div>
         <button class="btn ${ro || !evening ? 'ghost' : ''}" id="reveal">${ro ? t().showAnswers : t().openJournalShort}</button>
-        <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>
       </div>
       <div id="journal-view" ${collapsed ? 'hidden' : ''}>
         <p class="back"><button type="button" class="link small" id="to-practice">${t().backToPractice}</button></p>
@@ -612,10 +885,15 @@ async function viewQuestionnaire(id) {
         </form>
       </div>`, {
       compact: true,
+      medbar: { minutes: p?.minutes || 1, practice: p },
       hero: `<p class="kicker">${esc(t().dayLabel(inst.day_number))} · ${esc(fmtDate(inst.open_date))}${p?.reinforcement ? ` · ${esc(t().repeatOf(p.day))}` : ''}</p>
         <h1>${esc(p ? tx(p.title) : t().dayLabel(inst.day_number))}</h1>${p ? `<p class="lede theme-line">${esc(tx(p.theme))}</p>` : ''}`,
     });
-    wireTimer();
+    root.querySelector('#hide-intro')?.addEventListener('click', () => {
+      store.set(introSeenKey(), '1');
+      if (player.key === 'intro') stopAudio();
+      root.querySelector('.intro-day')?.remove();
+    });
     const pv = root.querySelector('#practice-view');
     const jv = root.querySelector('#journal-view');
     const mast = root.querySelector('.masthead');
@@ -648,24 +926,26 @@ async function viewQuestionnaire(id) {
   } else if (isEnd && ro) {
     // Departure day, after saving: thank you + take-home card; answers one tap away
     shell(`
+      ${audioCard('farewell')}
       ${takeHomeBlock(false)}
       <button class="btn ghost" id="reveal">${t().showAnswers}</button>
       <form data-kind="Q1" data-slot="end" id="f" novalidate class="ro" hidden>${renderSections('Q1', inst.answers || {}, true, 'end', ctx)}</form>
-      <p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>`, {
-      compact: true, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(t().takeHome)}</h1>`,
+      `, {
+      compact: true, medbar: {}, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(t().takeHome)}</h1>`,
     });
   } else {
     // Welcome (read-only) or closing questionnaire: one section per step
     const intro = isEnd ? t().endIntro : '';
     shell(`
       ${ro ? statusBadge : ''}
+      ${isEnd ? audioCard('farewell') : ''}
       <form data-kind="Q1" data-slot="${inst.slot}" ${ro ? '' : 'data-paged="1"'} id="f" novalidate class="${ro ? 'ro' : ''}">
         ${ro ? '' : pagerTop()}
         ${renderSections('Q1', ro ? inst.answers || {} : d.answers, ro, inst.slot, ctx, !ro)}
         ${ro ? '' : pagerNav()}
       </form>
-      ${ro ? `<p class="back"><a href="#/journey" class="link small">${t().backToJourney}</a></p>` : ''}`, {
-      compact: true, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
+      `, {
+      compact: true, medbar: isEnd ? {} : null, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
     });
   }
   root.querySelector('#reveal')?.addEventListener('click', (e) => {
@@ -680,7 +960,9 @@ async function viewQuestionnaire(id) {
 }
 // ---------- router ----------
 async function route(keepDraft = false) {
-  if (!keepDraft) state.draft = {};
+  if (!keepDraft) { state.draft = {}; state.medOpen = null; }
+  stopAudio();
+  if (!state.config) state.config = await fetch('/api/config').then((r) => r.json()).catch(() => ({ audio: {}, testMode: false }));
   document.documentElement.lang = state.lang;
   const [, page, arg] = (location.hash || '#/').split('/');
   if (page === 'reset' && arg) return viewReset(arg);

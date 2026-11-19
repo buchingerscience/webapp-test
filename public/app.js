@@ -463,6 +463,7 @@ function timerBlock(minutes, lengths = [1, 2, 5]) {
         <div class="tm-len" role="group" aria-label="${esc(t().lengthLabel)}"><span>${esc(t().lengthLabel)}</span>${opts}</div>
       </div>`;
 }
+const buzz = (pattern) => { try { navigator.vibrate?.(pattern); } catch { /* not supported */ } };
 let audioCtx = null;
 function gong() {
   try {
@@ -538,6 +539,7 @@ async function openTimer(minutes) {
   document.addEventListener('keydown', onKey);
   stop.focus();
   gong();
+  buzz(80); // a short tap: confirms the start when the phone is on silent
   ov.classList.add('running');
   try { lock = await navigator.wakeLock?.request('screen'); } catch { lock = null; }
   const endAt = Date.now() + minutes * 60000;
@@ -547,8 +549,10 @@ async function openTimer(minutes) {
     if (left === 0) {
       clearInterval(tick);
       ov.classList.remove('running');
+      ov.classList.add('done');
       gong();
-      try { navigator.vibrate?.(200); } catch { /* ignore */ }
+      // Three clear pulses, so a phone on silent still marks the end (Android; iPhones do not allow web pages to vibrate)
+      buzz([500, 250, 500, 250, 800]);
       msg.textContent = t().timerDone;
       ov.querySelector('#tm-status').textContent = t().timerDone;
       stop.textContent = t().timerClose;

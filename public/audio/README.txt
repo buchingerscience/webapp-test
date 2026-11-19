@@ -18,3 +18,5 @@ Sources (folder Webapp/Gilbert):
   EN: Introduction English / Meditation 5, 10, 20 Minutes English / Farewell and home practice English
   DE: Einführung Deutsch / Beginner German (= 5 min, 5:25) / Meditation 10, 20 Minuten Deutsch /
       Verabschiedung und Praxis Zuhause
+  FR: Introduction / Meditation 5, 10, 20 Minutes / Farewell and home practice FR_dubbed (added 19 Nov 2026)
+  ES: Introduction / Meditation 5, 10, 20 Minutes / Farewell and home practice ES_dubbed (added 19 Nov 2026)

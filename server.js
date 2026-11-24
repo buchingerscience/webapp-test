@@ -91,6 +91,8 @@ function journey(userId) {
 }
 
 // ---------- auth ----------
+// Change this date whenever the consent text in public/i18n.js changes; the admin export shows who accepted which version.
+const CONSENT_VERSION = '2026-11-24';
 app.post('/api/register', limit(10, 15 * 60000), (req, res) => {
   const { email, password, consent, language } = req.body || {};
   const e = String(email || '').trim().toLowerCase();
@@ -99,8 +101,8 @@ app.post('/api/register', limit(10, 15 * 60000), (req, res) => {
   if (consent !== true) return fail(res, 400, 'consent_required');
   if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(e)) return fail(res, 409, 'email_taken');
 
-  const info = db.prepare('INSERT INTO users (email, password_hash, language, consent_at) VALUES (?, ?, ?, ?)')
-    .run(e, bcrypt.hashSync(String(password), 10), lang(language), nowIso());
+  const info = db.prepare('INSERT INTO users (email, password_hash, language, consent_at, consent_version) VALUES (?, ?, ?, ?, ?)')
+    .run(e, bcrypt.hashSync(String(password), 10), lang(language), nowIso(), CONSENT_VERSION);
   const code = `IC-${String(info.lastInsertRowid).padStart(4, '0')}`;
   db.prepare('UPDATE users SET participant_code = ? WHERE id = ?').run(code, info.lastInsertRowid);
   startSession(res, info.lastInsertRowid);

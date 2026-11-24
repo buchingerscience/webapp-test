@@ -23,7 +23,7 @@ export async function buildWorkbook() {
   const now = localNow();
 
   const users = db.prepare(`
-    SELECT u.id, u.participant_code, u.email, u.language, u.created_at, u.consent_at, s.clinic, s.arrival_date, s.departure_date
+    SELECT u.id, u.participant_code, u.email, u.language, u.created_at, u.consent_at, u.consent_version, s.clinic, s.arrival_date, s.departure_date
     FROM users u LEFT JOIN stays s ON s.user_id = u.id ORDER BY u.id`).all();
   const codeOf = Object.fromEntries(users.map((u) => [u.id, u.participant_code]));
   const instances = db.prepare(`SELECT * FROM instances ORDER BY user_id, open_date, id`).all();
@@ -32,7 +32,7 @@ export async function buildWorkbook() {
 
   // 1. Participants — the only sheet with email addresses
   sheet(wb, 'participants',
-    ['participant_code', 'email', 'language', 'clinic', 'arrival_date', 'departure_date', 'registered_at', 'consent_at', 'questionnaires_completed', 'questionnaires_planned'],
+    ['participant_code', 'email', 'language', 'clinic', 'arrival_date', 'departure_date', 'registered_at', 'consent_at', 'consent_version', 'questionnaires_completed', 'questionnaires_planned'],
     users.map((u) => ({
       ...u, registered_at: u.created_at,
       questionnaires_completed: doneCount[u.id] || 0,

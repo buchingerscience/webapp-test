@@ -391,6 +391,14 @@ a.row-link:active { background: var(--blue-tint); }
 .bullets li { margin: 0 0 .35em; }
 .fullinfo summary { cursor: pointer; color: var(--link); font-size: 15px; }
 .fullinfo p { color: var(--muted); font-size: 15px; }
+.fullinfo[open] summary { margin-bottom: 8px; }
+.consent-full { background: var(--card, #fff); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.consent-full p { color: var(--ink); font-size: 15px; line-height: 1.55; margin: 0 0 .8em; max-width: none; }
+.consent-full p:last-child { margin-bottom: 0; }
+.consent-full .contact { color: var(--muted); }
+.check.locked { opacity: .55; cursor: not-allowed; }
+.check.locked input { cursor: not-allowed; }
+.consent-hint { color: var(--muted); font-size: 14px; margin: 6px 0 0 30px; }
 .consent p { color: var(--muted); }
 
 /* =====================================================================

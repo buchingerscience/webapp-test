@@ -1,7 +1,7 @@
 {
   "name": "innercalm",
   "version": "1.0.0",
-  "description": "Inner Calm study web app — Buchinger Wilhelmi",
+  "description": "Inner Calm study web app — Buchinger",
   "type": "module",
   "private": true,
   "scripts": {

@@ -72,4 +72,9 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 `);
 
+// Added 24 Nov 2026: which consent text the participant accepted
+if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'consent_version')) {
+  db.exec('ALTER TABLE users ADD COLUMN consent_version TEXT');
+}
+
 export const nowIso = () => new Date().toISOString();

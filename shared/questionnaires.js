@@ -196,8 +196,8 @@ export const QUESTIONNAIRES = {
 };
 
 export const CLINICS = [
-  { id: 'ueberlingen', label: 'Buchinger Wilhelmi Überlingen (Lake Constance)' },
-  { id: 'marbella', label: 'Buchinger Wilhelmi Marbella' },
+  { id: 'ueberlingen', label: 'Buchinger Überlingen (Lake Constance)' },
+  { id: 'marbella', label: 'Buchinger Marbella' },
 ];
 
 export function sectionsOf(kind, slot) {

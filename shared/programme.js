@@ -1,5 +1,5 @@
 // Inner Calm — meditation snacks
-// Developed with Gilbert Grimeau, meditation teacher at Buchinger Wilhelmi (meeting of 9 Nov 2026),
+// Developed with Gilbert Grimeau, meditation teacher at Buchinger (meeting of 9 Nov 2026),
 // with daily thoughts from Father Niklaus Brantschen SJ, lecture "Fasting and Silence: Twin Companions".
 //
 // Meditation snacks work like exercise snacks: very short practices, repeated as often as possible

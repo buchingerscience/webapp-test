@@ -228,11 +228,22 @@ function viewRegister() {
       <label>${t().password}<input name="password" type="password" autocomplete="new-password" minlength="8" required><small>${t().passwordHint}</small></label>
       <div class="consent"><h3>${t().consentTitle}</h3>
         <ul class="bullets">${t().consentBullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul>
-        <details class="fullinfo"><summary>${t().fullInfo}</summary><p>${t().consentText}</p></details>
-        <label class="check"><input type="checkbox" name="consent"> <span>${t().consentCheck}</span></label></div>
+        <details class="fullinfo" id="consent-doc"><summary>${t().fullInfo}</summary>
+          <div class="consent-full">${t().consentFull.map((x) => `<p>${esc(x)}</p>`).join('')}
+            <p class="contact">${t().consentContact.map(esc).join('<br>')}<br><a href="mailto:forschung@buchinger-wilhelmi.com">forschung@buchinger-wilhelmi.com</a></p></div></details>
+        <label class="check locked" id="consent-label"><input type="checkbox" name="consent" disabled aria-describedby="consent-hint"> <span>${t().consentCheck}</span></label>
+        <p class="consent-hint" id="consent-hint">${t().consentLocked}</p></div>
       <p class="err" id="err" role="alert"></p>
       <button class="btn">${t().register}</button>
     </form>`, `${t().haveAccount} <a href="#/login">${t().login}</a>`);
+  // The consent box can only be ticked once the consent text has been opened
+  const consentDoc = root.querySelector('#consent-doc');
+  consentDoc.addEventListener('toggle', () => {
+    if (!consentDoc.open) return;
+    root.querySelector('#consent-label').classList.remove('locked');
+    root.querySelector('input[name=consent]').disabled = false;
+    root.querySelector('#consent-hint').hidden = true;
+  });
   root.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
@@ -678,7 +689,7 @@ function loadAudio(card) {
   player.key = card.dataset.audio;
   try {
     const m = guideMeta(player.key);
-    navigator.mediaSession.metadata = new MediaMetadata({ title: m.title, artist: 'Gilbert Grimeau', album: 'Inner Calm · Buchinger Wilhelmi',
+    navigator.mediaSession.metadata = new MediaMetadata({ title: m.title, artist: 'Gilbert Grimeau', album: 'Inner Calm · Buchinger',
       artwork: [{ src: '/cover.jpg', sizes: '640x758', type: 'image/jpeg' }] });
   } catch { /* no media session */ }
   return el;

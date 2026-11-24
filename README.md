@@ -1,13 +1,13 @@
 # Inner Calm — study web app
 
-A small web app for the **Inner Calm** pilot (meditation during prolonged fasting, Buchinger Wilhelmi).
+A small web app for the **Inner Calm** pilot (meditation during prolonged fasting, Buchinger).
 Questionnaires follow the study brief *"Flywheel 1 brief on meditation"*, section 18.2. Colours follow the Buchinger Corporate Identity Guidelines (Dark Blue `#000051`, Off-white `#fcfaf2`, secondary colours used sparingly). Typography follows the same guidelines: **Arizona Flare** for headlines and body text, **Neuf** for small titles, section titles and buttons (caps, tracked), and **Edict Display** for quotes only, with Helvetica/Palatino as the fallbacks (also used in emails). The look follows the *Buchinger Times* (marketing's study newsletter): a full-bleed Mid Blue masthead with the Off-white logo (`public/logo-light.svg`) and centred Arizona Flare caps headlines, the Times cover photo on the login/register screens (`public/cover.jpg`), its line art (three circles; a circle with four inward arrows) and pull quotes on Mid Blue.
 
 Live at **https://innercalm.buchinger-science.com** · Admin at **https://innercalm.buchinger-science.com/admin**
 
 ## The meditation programme: moments of stillness
 
-Developed with **Gilbert Grimeau**, meditation teacher at Buchinger Wilhelmi (meeting of 9 Nov 2026), with a daily thought from Father **Niklaus Brantschen SJ** (lecture *"Fasting and Silence: Twin Companions"*). The text lives in `shared/programme.js`.
+Developed with **Gilbert Grimeau**, meditation teacher at Buchinger (meeting of 9 Nov 2026), with a daily thought from Father **Niklaus Brantschen SJ** (lecture *"Fasting and Silence: Twin Companions"*). The text lives in `shared/programme.js`.
 
 - **Moments of stillness** are very short meditations, repeated as often as possible during the day. Every wait (the nurse, the doctor, the bus) is an opportunity. No special place, cushion or posture is needed, and the phone is not forbidden.
 - **Length grows:** days 1–3 → 1 minute · days 4–6 → 2 minutes · day 7 onwards → 5 minutes.

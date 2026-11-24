@@ -32,7 +32,7 @@ const T = {
     resetSubject: 'Inner Calm · Reset your password',
     resetBody: 'Someone (hopefully you) asked to reset the password of your Inner Calm account. This link is valid for one hour. If you did not ask for it, simply ignore this email.',
     resetButton: 'Choose a new password',
-    footer: 'Inner Calm study · Buchinger Wilhelmi',
+    footer: 'Inner Calm study · Buchinger',
   },
   de: {
     reinforcement: 'Festigung',
@@ -46,7 +46,7 @@ const T = {
     resetSubject: 'Inner Calm · Passwort zurücksetzen',
     resetBody: 'Es wurde angefragt, das Passwort Ihres Inner-Calm-Kontos zurückzusetzen. Dieser Link ist eine Stunde gültig. Falls Sie das nicht waren, ignorieren Sie diese E-Mail einfach.',
     resetButton: 'Neues Passwort wählen',
-    footer: 'Inner-Calm-Studie · Buchinger Wilhelmi',
+    footer: 'Inner-Calm-Studie · Buchinger',
   },
   fr: {
     reinforcement: 'Consolidation',
@@ -60,7 +60,7 @@ const T = {
     resetSubject: 'Inner Calm · Réinitialiser votre mot de passe',
     resetBody: "Une demande de réinitialisation du mot de passe de votre compte Inner Calm a été faite. Ce lien est valable une heure. Si vous n'êtes pas à l'origine de cette demande, ignorez simplement cet e-mail.",
     resetButton: 'Choisir un nouveau mot de passe',
-    footer: 'Étude Inner Calm · Buchinger Wilhelmi',
+    footer: 'Étude Inner Calm · Buchinger',
   },
   es: {
     reinforcement: 'Refuerzo',
@@ -74,7 +74,7 @@ const T = {
     resetSubject: 'Inner Calm · Restablecer su contraseña',
     resetBody: 'Se ha solicitado restablecer la contraseña de su cuenta Inner Calm. Este enlace es válido durante una hora. Si no lo ha solicitado usted, ignore este correo.',
     resetButton: 'Elegir una nueva contraseña',
-    footer: 'Estudio Inner Calm · Buchinger Wilhelmi',
+    footer: 'Estudio Inner Calm · Buchinger',
   },
 };
 const t = (lang) => T[lang] || T.en;

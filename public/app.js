@@ -149,16 +149,24 @@ function renderItem(it, value, ro, ctx = {}) {
 }
 
 function renderSections(kind, answers = {}, ro = false, slot, ctx = {}, paged = false) {
-  return sectionsOf(kind, slot).map((s) => `
-    <section class="qsec ${paged ? 'page' : ''}" ${s.autohide ? 'data-autohide="1"' : ''}>
+  const head = (s) => (s.title || s.prompt) ? `
       <div class="qhead">${s.title ? `<h3>${esc(tx(s.title))}</h3>` : ''}
-      ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}</div>
-      ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('')}
+      ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}</div>` : '';
+  const items = (s) => s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('');
+  const out = [];
+  for (const s of sectionsOf(kind, slot)) {
+    // joinPrev: shown inside the previous block (same step in paged questionnaires), e.g. the follow-up statements after "Did you meditate?"
+    if (s.joinPrev && out.length) { out[out.length - 1].inner += `<div class="qsub" ${s.autohide ? 'data-autohide="1"' : ''}>${head(s)}${items(s)}</div>`; continue; }
+    out.push({ s, inner: head(s) + items(s) });
+  }
+  return out.map(({ s, inner }) => `
+    <section class="qsec ${paged ? 'page' : ''}" ${s.autohide ? 'data-autohide="1"' : ''}>${inner}
     </section>`).join('');
 }
 function applyShowIf(form) {
   form.querySelectorAll('[data-showif]').forEach((fs) => {
     const src = form.querySelector(`input[name="${fs.dataset.showif}"]:checked`);
+    if (src?.closest('.item')?.hidden) { fs.hidden = true; return; } // its condition question is itself hidden
     const v = src ? Number(src.value) : null;
     fs.hidden = v === null || ('equals' in fs.dataset ? v !== Number(fs.dataset.equals) : v < Number(fs.dataset.min));
   });

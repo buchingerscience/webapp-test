@@ -64,52 +64,48 @@ export async function buildWorkbook() {
       const a = JSON.parse(i.answers_json);
       return {
         participant_code: codeOf[i.user_id], day: i.day_number, date: i.open_date, completed_at: i.completed_at,
-        meditation_date: addDays(i.open_date, -1),
+        meditation_date: i.open_date,
         ...Object.fromEntries(q2Items.map((k) => [k, a[k]])),
         clarity_mean_0_5: mean(['clarity_1', 'clarity_2', 'clarity_3'].map((k) => a[k])),
         positive_mean_0_10: mean(['perma_1', 'perma_2', 'perma_3'].map((k) => a[k])),
-        experience_mean_1_5: mean(['exp_immersed', 'exp_calm', 'exp_body', 'exp_enriched', 'exp_again'].map((k) => a[k])),
+        experience_mean_1_5: mean((a.exp_meditated ? ['exp_immersed', 'exp_calm', 'exp_body', 'exp_enriched', 'exp_again'].map((k) => a[k]) : [null])),
       };
     }));
 
   // 4. Meditation log — one row per (participant, day reported on).
-  // Q2 of day k reports on day k-1 (day 0 = the day before arrival); the closing Q1 reports on the last day.
-  // snack_band: 0 = none, 1 = 1–2, 2 = 3–5, 3 = 6–10, 4 = more than 10 meditation snacks.
-  // class_*: sessions of the clinic's meditation programme (self-selected; analyse as a covariate).
-  // legacy_*: answers given with the earlier 15–20-minute programme ("Did you meditate yesterday?").
-  const BAND = ['none', '1-2', '3-5', '6-10', '>10'];
+  // The evening journal (Q2) of day k reports on day k itself; the closing questionnaire reports on the day before departure.
+  // meditated: 1/0 (a moment of stillness, a guided meditation or a clinic session counts).
+  // class_*: sessions of the clinic's meditation programme (asked only if meditated). experience: mean of the 5 statements (1–5).
   const stays = Object.fromEntries(users.map((u) => [u.id, u]));
+  const EXP = ['exp_immersed', 'exp_calm', 'exp_body', 'exp_enriched', 'exp_again'];
   const log = [];
   instances.filter((i) => i.completed_at && (i.kind === 'Q2' || i.slot === 'end')).forEach((i) => {
     const a = JSON.parse(i.answers_json);
-    const isNew = typeof a.snacks_yesterday === 'number';
-    const isLegacy = typeof a.meditated_yesterday === 'number';
-    if (!isNew && !isLegacy) return;
-    const date = addDays(i.open_date, -1);
+    if (typeof a.exp_meditated !== 'number') return; // answered with an earlier version of the questions
+    const date = i.kind === 'Q2' ? i.open_date : addDays(i.open_date, -1);
     const st = stays[i.user_id];
     const programmeDay = st?.arrival_date ? Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${st.arrival_date}T00:00:00Z`)) / 86400000) + 1 : null;
     log.push({ user_id: i.user_id, participant_code: codeOf[i.user_id], meditation_date: date, programme_day: programmeDay, reported_in: i.slot,
-      programme_version: isNew ? 'snacks' : 'legacy_15_20min',
-      snack_band: isNew ? a.snacks_yesterday : null, snacks: isNew ? BAND[a.snacks_yesterday] : null,
-      class_attended: isNew ? a.class_yesterday : null, class_minutes: isNew ? (a.class_yesterday ? a.class_minutes_yesterday : 0) : null,
-      legacy_meditated: isLegacy ? a.meditated_yesterday : null, legacy_minutes: isLegacy ? (a.meditated_yesterday ? a.meditation_minutes_yesterday : 0) : null });
+      meditated: a.exp_meditated, class_attended: a.exp_meditated ? a.class_attended : 0,
+      class_minutes: a.exp_meditated && a.class_attended ? a.class_minutes : 0,
+      experience_mean_1_5: a.exp_meditated ? mean(EXP.map((k) => a[k])) : null });
   });
   log.sort((x, y) => (x.user_id - y.user_id) || x.meditation_date.localeCompare(y.meditation_date));
-  sheet(wb, 'meditation_log', ['participant_code', 'meditation_date', 'programme_day', 'reported_in', 'programme_version', 'snack_band', 'snacks', 'class_attended', 'class_minutes', 'legacy_meditated', 'legacy_minutes'], log);
+  sheet(wb, 'meditation_log', ['participant_code', 'meditation_date', 'programme_day', 'reported_in', 'meditated', 'class_attended', 'class_minutes', 'experience_mean_1_5'], log);
 
   // 5. Meditation summary per participant (programme days only = arrival day … day before departure)
   sheet(wb, 'meditation_summary',
-    ['participant_code', 'programme_days', 'days_reported', 'days_with_snacks', 'days_3plus_snacks', 'mean_snack_band', 'days_class', 'total_class_minutes'],
+    ['participant_code', 'programme_days', 'days_reported', 'days_meditated', 'days_class', 'total_class_minutes', 'mean_experience_1_5'],
     users.filter((u) => u.arrival_date).map((u) => {
       const n = Math.round((new Date(`${u.departure_date}T00:00:00Z`) - new Date(`${u.arrival_date}T00:00:00Z`)) / 86400000);
-      const rows = log.filter((r) => r.user_id === u.id && r.programme_day >= 1 && r.programme_day <= n && r.programme_version === 'snacks');
+      const rows = log.filter((r) => r.user_id === u.id && r.programme_day >= 1 && r.programme_day <= n);
+      const exp = rows.map((r) => r.experience_mean_1_5).filter((x) => typeof x === 'number');
       return {
         participant_code: u.participant_code, programme_days: n, days_reported: rows.length,
-        days_with_snacks: rows.filter((r) => r.snack_band >= 1).length,
-        days_3plus_snacks: rows.filter((r) => r.snack_band >= 2).length,
-        mean_snack_band: rows.length ? +(rows.reduce((t, r) => t + r.snack_band, 0) / rows.length).toFixed(2) : null,
+        days_meditated: rows.filter((r) => r.meditated === 1).length,
         days_class: rows.filter((r) => r.class_attended === 1).length,
         total_class_minutes: rows.reduce((t, r) => t + (r.class_minutes || 0), 0),
+        mean_experience_1_5: exp.length ? +(exp.reduce((t, x) => t + x, 0) / exp.length).toFixed(2) : null,
       };
     }));
 

@@ -38,25 +38,6 @@ const SCALE_0_10_SLEEP = {
   anchors: { en: ['Very poorly', 'Extremely well'], de: ['Sehr schlecht', 'Ausgezeichnet'], fr: ['Très mal', 'Extrêmement bien'], es: ['Muy mal', 'Extremadamente bien'] },
 };
 
-// "{yesterday}" is replaced in the app by the calendar date of the day before the questionnaire opened.
-// Meditation snacks (short practices of 1–5 minutes, developed with Gilbert Grimeau) are counted separately
-// from sessions of the clinic's meditation programme, which are longer and self-selected.
-const SNACK_BANDS = {
-  en: ['None', '1–2', '3–5', '6–10', 'More than 10'],
-  de: ['Keinen', '1–2', '3–5', '6–10', 'Mehr als 10'],
-  fr: ['Aucun', '1–2', '3–5', '6–10', 'Plus de 10'],
-  es: ['Ninguno', '1–2', '3–5', '6–10', 'Más de 10'],
-};
-const MEDITATION_YESTERDAY = [
-  { id: 'snacks_yesterday',
-    response: { type: 'choice', options: SNACK_BANDS.en.map((_, i) => ({ value: i, label: Object.fromEntries(Object.entries(SNACK_BANDS).map(([l, arr]) => [l, arr[i]])) })) },
-    text: { en: 'Yesterday ({yesterday}), how many moments of stillness (short meditations of a few minutes) did you take?', de: 'Wie viele Momente der Stille (kurze Meditationen von wenigen Minuten) haben Sie gestern ({yesterday}) eingelegt?', fr: 'Hier ({yesterday}), combien d’instants de quiétude (courtes méditations de quelques minutes) avez-vous pris ?', es: 'Ayer ({yesterday}), ¿cuántos momentos de quietud (meditaciones breves de unos minutos) se tomó?' } },
-  { id: 'class_yesterday', response: { type: 'yesno' },
-    text: { en: 'Yesterday, did you take part in a session of the clinic’s meditation programme (seminar or guided meditation)?', de: 'Haben Sie gestern an einer Einheit des Meditationsprogramms der Klinik teilgenommen (Seminar oder geführte Meditation)?', fr: 'Hier, avez-vous participé à une séance du programme de méditation de la clinique (séminaire ou méditation guidée) ?', es: 'Ayer, ¿participó en una sesión del programa de meditación de la clínica (seminario o meditación guiada)?' } },
-  { id: 'class_minutes_yesterday', showIf: { item: 'class_yesterday', equals: 1 },
-    response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } },
-    text: { en: 'Approximately how many minutes in total did those sessions last?', de: 'Wie viele Minuten haben diese Einheiten insgesamt ungefähr gedauert?', fr: 'Combien de minutes environ ces séances ont-elles duré au total ?', es: '¿Aproximadamente cuántos minutos duraron esas sesiones en total?' } },
-];
 
 const choice = (labels) => ({ type: 'choice', options: labels.en.map((_, i) => ({ value: i, label: Object.fromEntries(Object.entries(labels).map(([l, arr]) => [l, arr[i]])) })) });
 
@@ -90,8 +71,6 @@ const MEDITATION_HABITS = {
         fr: ['Méditation sur la respiration ou de pleine conscience', 'Zen / zazen', 'Méditation avec mantra (p. ex. Méditation transcendantale)', 'Méditation de bienveillance ou de compassion', 'Body scan ou yoga nidra', 'Méditation guidée (application ou audio)', 'Prière ou pratique contemplative', 'Autre'],
         es: ['Meditación de la respiración o mindfulness', 'Zen / zazen', 'Meditación con mantra (p. ej., Meditación Trascendental)', 'Meditación de bondad amorosa o compasión', 'Escaneo corporal o yoga nidra', 'Meditación guiada (app o audio)', 'Oración o práctica contemplativa', 'Otra'] }),
       text: { en: 'Which kind of meditation have you practised most?', de: 'Welche Art von Meditation haben Sie am häufigsten praktiziert?', fr: 'Quel type de méditation avez-vous le plus pratiqué ?', es: '¿Qué tipo de meditación ha practicado más?' } },
-    { id: 'med_retreat', showIf: { item: 'med_ever', min: 1 }, response: { type: 'yesno' },
-      text: { en: 'Have you ever taken part in a meditation retreat (one day or longer)?', de: 'Haben Sie schon einmal an einem Meditationsretreat teilgenommen (einen Tag oder länger)?', fr: 'Avez-vous déjà participé à une retraite de méditation (d’une journée ou plus) ?', es: '¿Ha participado alguna vez en un retiro de meditación (de un día o más)?' } },
     { id: 'med_expectation', response: SCALE_0_5_EXPECT,
       text: { en: 'How much do you expect daily meditation to help you during this stay?', de: 'Wie sehr wird Ihnen Ihrer Erwartung nach die tägliche Meditation während dieses Aufenthalts helfen?', fr: 'Dans quelle mesure pensez-vous que la méditation quotidienne vous aidera pendant ce séjour ?', es: '¿En qué medida espera que la meditación diaria le ayude durante esta estancia?' } },
   ],
@@ -107,32 +86,59 @@ const AGREE_1_5 = {
     es: ['Totalmente en desacuerdo', 'En desacuerdo', 'Ni de acuerdo ni en desacuerdo', 'De acuerdo', 'Totalmente de acuerdo'],
   },
 };
-const MEDITATED_TODAY = {
-  id: 'meditated_today',
-  title: { en: 'Your meditation today', de: 'Ihre Meditation heute', fr: 'Votre méditation aujourd’hui', es: 'Su meditación de hoy' },
-  items: [
-    { id: 'exp_meditated',
-      text: { en: 'Did you meditate today (a moment of stillness, a guided meditation or a clinic session)?', de: 'Haben Sie heute meditiert (ein Moment der Stille, eine geführte Meditation oder eine Einheit in der Klinik)?', fr: 'Avez-vous médité aujourd’hui (un instant de quiétude, une méditation guidée ou une séance à la clinique) ?', es: '¿Ha meditado hoy (un momento de quietud, una meditación guiada o una sesión en la clínica)?' },
-      response: { type: 'choice', options: [
-        { value: 1, label: { en: 'I meditated today', de: 'Ich habe heute meditiert', fr: 'J’ai médité aujourd’hui', es: 'He meditado hoy' } },
-        { value: 0, label: { en: 'I didn’t meditate today', de: 'Ich habe heute nicht meditiert', fr: 'Je n’ai pas médité aujourd’hui', es: 'No he meditado hoy' } },
-      ] } },
-  ],
+// Meditation block (25 Nov 2026). Asked about TODAY in the evening journal and about YESTERDAY
+// (the last day of the stay) in the closing questionnaire. Same item ids at both time points.
+// A clinic session counts as meditation, so the clinic questions only follow "I meditated".
+// "{yesterday}" is replaced in the app by the calendar date of the day before the questionnaire opened.
+const W = {
+  today: {
+    title: { en: 'Your meditation today', de: 'Ihre Meditation heute', fr: 'Votre méditation aujourd’hui', es: 'Su meditación de hoy' },
+    gate: { en: 'Did you meditate today (a moment of stillness, a guided meditation or a clinic session)?', de: 'Haben Sie heute meditiert (ein Moment der Stille, eine geführte Meditation oder eine Einheit in der Klinik)?', fr: 'Avez-vous médité aujourd’hui (un instant de quiétude, une méditation guidée ou une séance à la clinique) ?', es: '¿Ha meditado hoy (un momento de quietud, una meditación guiada o una sesión en la clínica)?' },
+    yes: { en: 'I meditated today', de: 'Ich habe heute meditiert', fr: 'J’ai médité aujourd’hui', es: 'He meditado hoy' },
+    no: { en: 'I didn’t meditate today', de: 'Ich habe heute nicht meditiert', fr: 'Je n’ai pas médité aujourd’hui', es: 'No he meditado hoy' },
+    cls: { en: 'Did you take part in a session of the clinic’s meditation programme (seminar or guided meditation)?', de: 'Haben Sie an einer Einheit des Meditationsprogramms der Klinik teilgenommen (Seminar oder geführte Meditation)?', fr: 'Avez-vous participé à une séance du programme de méditation de la clinique (séminaire ou méditation guidée) ?', es: '¿Participó en una sesión del programa de meditación de la clínica (seminario o meditación guiada)?' },
+    how: { en: 'How did you experience your meditation today?', de: 'Wie haben Sie Ihre Meditation heute erlebt?', fr: 'Comment avez-vous vécu votre méditation aujourd’hui ?', es: '¿Cómo vivió su meditación de hoy?' },
+  },
+  yesterday: {
+    title: { en: 'Your meditation yesterday', de: 'Ihre Meditation gestern', fr: 'Votre méditation d’hier', es: 'Su meditación de ayer' },
+    gate: { en: 'Yesterday ({yesterday}), did you meditate (a moment of stillness, a guided meditation or a clinic session)?', de: 'Haben Sie gestern ({yesterday}) meditiert (ein Moment der Stille, eine geführte Meditation oder eine Einheit in der Klinik)?', fr: 'Hier ({yesterday}), avez-vous médité (un instant de quiétude, une méditation guidée ou une séance à la clinique) ?', es: 'Ayer ({yesterday}), ¿meditó (un momento de quietud, una meditación guiada o una sesión en la clínica)?' },
+    yes: { en: 'I meditated yesterday', de: 'Ich habe gestern meditiert', fr: 'J’ai médité hier', es: 'Medité ayer' },
+    no: { en: 'I didn’t meditate yesterday', de: 'Ich habe gestern nicht meditiert', fr: 'Je n’ai pas médité hier', es: 'No medité ayer' },
+    cls: { en: 'Yesterday, did you take part in a session of the clinic’s meditation programme (seminar or guided meditation)?', de: 'Haben Sie gestern an einer Einheit des Meditationsprogramms der Klinik teilgenommen (Seminar oder geführte Meditation)?', fr: 'Hier, avez-vous participé à une séance du programme de méditation de la clinique (séminaire ou méditation guidée) ?', es: 'Ayer, ¿participó en una sesión del programa de meditación de la clínica (seminario o meditación guiada)?' },
+    how: { en: 'How did you experience your meditation yesterday?', de: 'Wie haben Sie Ihre Meditation gestern erlebt?', fr: 'Comment avez-vous vécu votre méditation hier ?', es: '¿Cómo vivió su meditación de ayer?' },
+  },
 };
-// Shown only after "I meditated today"; the block disappears otherwise (autohide)
-const MEDITATION_EXPERIENCE = {
-  id: 'experience',
-  autohide: true,
-  prompt: { en: 'How did you experience your meditation today?', de: 'Wie haben Sie Ihre Meditation heute erlebt?', fr: 'Comment avez-vous vécu votre méditation aujourd’hui ?', es: '¿Cómo vivió su meditación de hoy?' },
-  response: AGREE_1_5,
-  items: [
-    { id: 'exp_immersed', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I was fully immersed in my meditation.', de: 'Ich war ganz in meine Meditation vertieft.', fr: 'J’étais pleinement absorbé(e) dans ma méditation.', es: 'Estuve plenamente inmerso/a en mi meditación.' } },
-    { id: 'exp_calm', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I felt a greater sense of inner calm after the meditation.', de: 'Nach der Meditation spürte ich mehr innere Ruhe.', fr: 'J’ai ressenti un plus grand calme intérieur après la méditation.', es: 'Sentí una mayor calma interior después de la meditación.' } },
-    { id: 'exp_body', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I felt more connected to my body.', de: 'Ich fühlte mich stärker mit meinem Körper verbunden.', fr: 'Je me suis senti(e) plus connecté(e) à mon corps.', es: 'Me sentí más conectado/a con mi cuerpo.' } },
-    { id: 'exp_enriched', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'The practice of meditation enriched my Buchinger experience.', de: 'Die Meditationspraxis hat meine Zeit bei Buchinger bereichert.', fr: 'La pratique de la méditation a enrichi mon expérience chez Buchinger.', es: 'La práctica de la meditación enriqueció mi experiencia en Buchinger.' } },
-    { id: 'exp_again', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I would like to meditate again tomorrow.', de: 'Ich möchte morgen wieder meditieren.', fr: 'J’aimerais méditer à nouveau demain.', es: 'Me gustaría volver a meditar mañana.' } },
-  ],
-};
+const ifMeditated = { item: 'exp_meditated', equals: 1 };
+function meditationSections(when, only) {
+  const w = W[when];
+  return [
+    {
+      id: `meditation_${when}`, ...(only ? { only } : {}),
+      title: w.title,
+      items: [
+        { id: 'exp_meditated', text: w.gate,
+          response: { type: 'choice', options: [{ value: 1, label: w.yes }, { value: 0, label: w.no }] } },
+        { id: 'class_attended', showIf: ifMeditated, response: { type: 'yesno' }, text: w.cls },
+        { id: 'class_minutes', showIf: { item: 'class_attended', equals: 1 },
+          response: { type: 'number', min: 0, max: 600, unit: { en: 'minutes', de: 'Minuten', fr: 'minutes', es: 'minutos' } },
+          text: { en: 'Approximately how many minutes in total did those sessions last?', de: 'Wie viele Minuten haben diese Einheiten insgesamt ungefähr gedauert?', fr: 'Combien de minutes environ ces séances ont-elles duré au total ?', es: '¿Aproximadamente cuántos minutos duraron esas sesiones en total?' } },
+      ],
+    },
+    {
+      // shown only after "I meditated"; the block disappears otherwise (autohide)
+      id: `experience_${when}`, ...(only ? { only } : {}), autohide: true, joinPrev: true,
+      prompt: w.how,
+      response: AGREE_1_5,
+      items: [
+        { id: 'exp_immersed', showIf: ifMeditated, text: { en: 'I was fully immersed in my meditation.', de: 'Ich war ganz in meine Meditation vertieft.', fr: 'J’étais pleinement absorbé(e) dans ma méditation.', es: 'Estuve plenamente inmerso/a en mi meditación.' } },
+        { id: 'exp_calm', showIf: ifMeditated, text: { en: 'I felt a greater sense of inner calm after the meditation.', de: 'Nach der Meditation spürte ich mehr innere Ruhe.', fr: 'J’ai ressenti un plus grand calme intérieur après la méditation.', es: 'Sentí una mayor calma interior después de la meditación.' } },
+        { id: 'exp_body', showIf: ifMeditated, text: { en: 'I felt more connected to my body.', de: 'Ich fühlte mich stärker mit meinem Körper verbunden.', fr: 'Je me suis senti(e) plus connecté(e) à mon corps.', es: 'Me sentí más conectado/a con mi cuerpo.' } },
+        { id: 'exp_enriched', showIf: ifMeditated, text: { en: 'The practice of meditation enriched my Buchinger experience.', de: 'Die Meditationspraxis hat meine Zeit bei Buchinger bereichert.', fr: 'La pratique de la méditation a enrichi mon expérience chez Buchinger.', es: 'La práctica de la meditación enriqueció mi experiencia en Buchinger.' } },
+        { id: 'exp_again', showIf: ifMeditated, text: { en: 'I plan to meditate again tomorrow.', de: 'Ich habe vor, morgen wieder zu meditieren.', fr: 'Je prévois de méditer à nouveau demain.', es: 'Tengo previsto volver a meditar mañana.' } },
+      ],
+    },
+  ];
+}
 
 export const QUESTIONNAIRES = {
   Q1: {
@@ -174,11 +180,24 @@ export const QUESTIONNAIRES = {
         ],
       },
       MEDITATION_HABITS,
+      ...meditationSections('yesterday', 'end'),
       {
-        id: 'meditation_end',
+        id: 'looking_back',
         only: 'end',
-        title: { en: 'Meditation yesterday', de: 'Meditation gestern', fr: 'Méditation hier', es: 'Meditación ayer' },
-        items: MEDITATION_YESTERDAY,
+        title: { en: 'Looking back', de: 'Rückblick', fr: 'Bilan', es: 'Balance' },
+        items: [
+          { id: 'med_helped', response: SCALE_0_5,
+            text: { en: 'How much did daily meditation help you during this stay?', de: 'Wie sehr hat Ihnen die tägliche Meditation während dieses Aufenthalts geholfen?', fr: 'Dans quelle mesure la méditation quotidienne vous a-t-elle aidé(e) pendant ce séjour ?', es: '¿En qué medida le ayudó la meditación diaria durante esta estancia?' } },
+        ],
+      },
+      {
+        id: 'since_stay',
+        only: 'followup',
+        title: { en: 'Since your stay', de: 'Seit Ihrem Aufenthalt', fr: 'Depuis votre séjour', es: 'Desde su estancia' },
+        items: [
+          { id: 'med_continued', response: { type: 'yesno' },
+            text: { en: 'Have you continued practising meditation?', de: 'Haben Sie weiter meditiert?', fr: 'Avez-vous continué à pratiquer la méditation ?', es: '¿Ha seguido practicando la meditación?' } },
+        ],
       },
     ],
   },
@@ -194,6 +213,9 @@ export const QUESTIONNAIRES = {
           { id: 'clarity_1', text: { en: 'I felt clear-headed.', de: 'Ich fühlte mich klar im Kopf.', fr: "J'avais les idées claires.", es: 'Tuve la mente despejada.' } },
           { id: 'clarity_2', text: { en: 'I was able to concentrate easily.', de: 'Ich konnte mich leicht konzentrieren.', fr: "J'ai pu me concentrer facilement.", es: 'Pude concentrarme con facilidad.' } },
           { id: 'clarity_3', text: { en: 'My thinking felt sharp.', de: 'Mein Denken war scharf.', fr: 'Ma pensée était vive.', es: 'Mi pensamiento fue ágil.' } },
+          { id: 'clarity_4', text: { en: 'I felt better compared to my usual state of mind.', de: 'Ich fühlte mich besser als in meiner üblichen Verfassung.', fr: 'Je me suis senti(e) mieux que dans mon état d’esprit habituel.', es: 'Me sentí mejor que en mi estado de ánimo habitual.' } },
+          { id: 'clarity_5', text: { en: 'I feel mentally clearer than I normally do.', de: 'Ich fühle mich geistig klarer als sonst.', fr: 'Je me sens l’esprit plus clair que d’habitude.', es: 'Me siento mentalmente más despejado/a de lo normal.' } },
+          { id: 'creativity_1', text: { en: 'I felt creative.', de: 'Ich fühlte mich kreativ.', fr: "Je me suis senti(e) créatif/créative.", es: 'Me sentí creativo/a.' } },
         ],
       },
       {
@@ -207,28 +229,15 @@ export const QUESTIONNAIRES = {
           { id: 'perma_3', text: { en: 'I am feeling contented.', de: 'Ich fühle mich zufrieden.', fr: 'Je me sens satisfait(e).', es: 'Me siento satisfecho/a.' } },
         ],
       },
-      {
-        id: 'creativity',
-        title: { en: 'Creativity', de: 'Kreativität', fr: 'Créativité', es: 'Creatividad' },
-        prompt: { en: 'Thinking about today, to what extent…', de: 'Wenn Sie an heute denken, inwieweit trifft Folgendes zu…', fr: "En pensant à aujourd'hui, dans quelle mesure…", es: 'Pensando en el día de hoy, ¿en qué medida…?' },
-        response: SCALE_0_5,
-        items: [
-          { id: 'creativity_1', text: { en: 'I felt creative.', de: 'Ich fühlte mich kreativ.', fr: "Je me suis senti(e) créatif/créative.", es: 'Me sentí creativo/a.' } },
-        ],
-      },
-      MEDITATED_TODAY,
-      MEDITATION_EXPERIENCE,
-      {
-        id: 'meditation',
-        title: { en: 'Meditation yesterday', de: 'Meditation gestern', fr: 'Méditation hier', es: 'Meditación ayer' },
-        items: MEDITATION_YESTERDAY,
-      },
+      ...meditationSections('today'),
       {
         id: 'sleep',
         title: { en: 'Sleep', de: 'Schlaf', fr: 'Sommeil', es: 'Sueño' },
         response: SCALE_0_10_SLEEP,
         items: [
           { id: 'sleep_quality', text: { en: 'How well did you sleep last night?', de: 'Wie gut haben Sie letzte Nacht geschlafen?', fr: 'Comment avez-vous dormi la nuit dernière ?', es: '¿Qué tan bien durmió anoche?' } },
+          { id: 'dreams_vivid', response: AGREE_1_5, text: { en: 'I experienced more vivid dreams than usual.', de: 'Ich hatte lebhaftere Träume als sonst.', fr: 'J’ai fait des rêves plus intenses que d’habitude.', es: 'Tuve sueños más vívidos de lo habitual.' } },
+          { id: 'dreams_recall', response: AGREE_1_5, text: { en: 'I remembered my dreams more clearly than usual.', de: 'Ich konnte mich klarer als sonst an meine Träume erinnern.', fr: 'Je me suis souvenu(e) de mes rêves plus clairement que d’habitude.', es: 'Recordé mis sueños con más claridad de lo habitual.' } },
         ],
       },
     ],
@@ -282,7 +291,7 @@ export function validateAnswers(kind, answers, slot) {
   const errors = [];
   if (!answers || typeof answers !== 'object') return { ok: false, clean, errors: ['answers missing'] };
   for (const it of itemsOf(kind, slot)) {
-    if (!isShown(it, answers)) { clean[it.id] = null; continue; }
+    if (!isShown(it, { ...answers, ...clean })) { clean[it.id] = null; continue; }
     const raw = answers[it.id];
     if (raw === undefined || raw === null || raw === '') { errors.push(it.id); continue; }
     const v = Number(raw);

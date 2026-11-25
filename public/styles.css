@@ -638,3 +638,7 @@ input:focus, select:focus { outline: 3px solid var(--mid-blue); outline-offset: 
 /* Programme question on the stay step (25 Nov 2026) */
 .stay .programme-q { margin: 4px 0 14px; }
 .stay .programme-q legend { font-size: 16px; line-height: 1.45; margin-bottom: 10px; }
+
+/* Follow-up block inside a section (e.g. statements after "Did you meditate?") */
+.qsub { margin-top: 18px; }
+.qsub > .qhead { border-top: 0; padding-top: 4px; }

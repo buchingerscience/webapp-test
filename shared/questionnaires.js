@@ -1,6 +1,7 @@
 // Inner Calm study — questionnaire definitions (shared by server and browser).
 // Source: "Flywheel 1 brief on meditation", section 18.2 "The exact questionnaire set".
-// Q1 = baseline + end of stay (broad anchors). Q2 = daily pulse.
+// Q1 = baseline + end of stay + follow-up one week after departure (broad anchors). Q2 = daily pulse.
+// Sections marked only: 'baseline' / 'end' appear at that time point only; the follow-up gets the shared sections.
 //
 // NOTE ON TRANSLATIONS: English is the reference wording from the brief.
 // DE/FR/ES are working translations. WHO-5 and PROMIS have official translated
@@ -96,6 +97,43 @@ const MEDITATION_HABITS = {
   ],
 };
 
+// Added 25 Nov 2026 — daily: how was today's meditation (1–5 Likert, shown Strongly disagree → Strongly agree)
+const AGREE_1_5 = {
+  type: 'labelled', min: 1, max: 5, ascending: true,
+  labels: {
+    en: ['Strongly disagree', 'Disagree', 'Neither agree nor disagree', 'Agree', 'Strongly agree'],
+    de: ['Stimme überhaupt nicht zu', 'Stimme nicht zu', 'Weder noch', 'Stimme zu', 'Stimme voll und ganz zu'],
+    fr: ['Pas du tout d’accord', 'Pas d’accord', 'Ni d’accord ni pas d’accord', 'D’accord', 'Tout à fait d’accord'],
+    es: ['Totalmente en desacuerdo', 'En desacuerdo', 'Ni de acuerdo ni en desacuerdo', 'De acuerdo', 'Totalmente de acuerdo'],
+  },
+};
+const MEDITATED_TODAY = {
+  id: 'meditated_today',
+  title: { en: 'Your meditation today', de: 'Ihre Meditation heute', fr: 'Votre méditation aujourd’hui', es: 'Su meditación de hoy' },
+  items: [
+    { id: 'exp_meditated',
+      text: { en: 'Did you meditate today (a moment of stillness, a guided meditation or a clinic session)?', de: 'Haben Sie heute meditiert (ein Moment der Stille, eine geführte Meditation oder eine Einheit in der Klinik)?', fr: 'Avez-vous médité aujourd’hui (un instant de quiétude, une méditation guidée ou une séance à la clinique) ?', es: '¿Ha meditado hoy (un momento de quietud, una meditación guiada o una sesión en la clínica)?' },
+      response: { type: 'choice', options: [
+        { value: 1, label: { en: 'I meditated today', de: 'Ich habe heute meditiert', fr: 'J’ai médité aujourd’hui', es: 'He meditado hoy' } },
+        { value: 0, label: { en: 'I didn’t meditate today', de: 'Ich habe heute nicht meditiert', fr: 'Je n’ai pas médité aujourd’hui', es: 'No he meditado hoy' } },
+      ] } },
+  ],
+};
+// Shown only after "I meditated today"; the block disappears otherwise (autohide)
+const MEDITATION_EXPERIENCE = {
+  id: 'experience',
+  autohide: true,
+  prompt: { en: 'How did you experience your meditation today?', de: 'Wie haben Sie Ihre Meditation heute erlebt?', fr: 'Comment avez-vous vécu votre méditation aujourd’hui ?', es: '¿Cómo vivió su meditación de hoy?' },
+  response: AGREE_1_5,
+  items: [
+    { id: 'exp_immersed', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I was fully immersed in my meditation.', de: 'Ich war ganz in meine Meditation vertieft.', fr: 'J’étais pleinement absorbé(e) dans ma méditation.', es: 'Estuve plenamente inmerso/a en mi meditación.' } },
+    { id: 'exp_calm', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I felt a greater sense of inner calm after the meditation.', de: 'Nach der Meditation spürte ich mehr innere Ruhe.', fr: 'J’ai ressenti un plus grand calme intérieur après la méditation.', es: 'Sentí una mayor calma interior después de la meditación.' } },
+    { id: 'exp_body', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I felt more connected to my body.', de: 'Ich fühlte mich stärker mit meinem Körper verbunden.', fr: 'Je me suis senti(e) plus connecté(e) à mon corps.', es: 'Me sentí más conectado/a con mi cuerpo.' } },
+    { id: 'exp_enriched', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'The practice of meditation enriched my Buchinger experience.', de: 'Die Meditationspraxis hat meine Zeit bei Buchinger bereichert.', fr: 'La pratique de la méditation a enrichi mon expérience chez Buchinger.', es: 'La práctica de la meditación enriqueció mi experiencia en Buchinger.' } },
+    { id: 'exp_again', showIf: { item: 'exp_meditated', equals: 1 }, text: { en: 'I would like to meditate again tomorrow.', de: 'Ich möchte morgen wieder meditieren.', fr: 'J’aimerais méditer à nouveau demain.', es: 'Me gustaría volver a meditar mañana.' } },
+  ],
+};
+
 export const QUESTIONNAIRES = {
   Q1: {
     sections: [
@@ -178,6 +216,8 @@ export const QUESTIONNAIRES = {
           { id: 'creativity_1', text: { en: 'I felt creative.', de: 'Ich fühlte mich kreativ.', fr: "Je me suis senti(e) créatif/créative.", es: 'Me sentí creativo/a.' } },
         ],
       },
+      MEDITATED_TODAY,
+      MEDITATION_EXPERIENCE,
       {
         id: 'meditation',
         title: { en: 'Meditation yesterday', de: 'Meditation gestern', fr: 'Méditation hier', es: 'Meditación ayer' },
@@ -194,6 +234,19 @@ export const QUESTIONNAIRES = {
     ],
   },
 };
+
+// Asked with the clinic on the first step of the welcome questionnaire (added 25 Nov 2026); stored in stays.programme
+export const PROGRAMME_QUESTION = {
+  en: 'Are you planning to follow the Buchinger fasting programme or one of our nutritional programmes (low-calorie diet, regenerative diet, etc.)?',
+  de: 'Planen Sie, das Buchinger Fastenprogramm oder eines unserer Ernährungsprogramme (kalorienreduzierte Kost, regenerative Kost usw.) zu machen?',
+  fr: 'Prévoyez-vous de suivre le programme de jeûne Buchinger ou l’un de nos programmes nutritionnels (alimentation hypocalorique, alimentation régénérative, etc.) ?',
+  es: '¿Tiene previsto seguir el programa de ayuno Buchinger o uno de nuestros programas nutricionales (dieta baja en calorías, dieta regenerativa, etc.)?',
+};
+export const PROGRAMMES = [
+  { id: 'fasting', label: { en: 'The Buchinger fasting programme', de: 'Das Buchinger Fastenprogramm', fr: 'Le programme de jeûne Buchinger', es: 'El programa de ayuno Buchinger' } },
+  { id: 'nutrition', label: { en: 'One of the nutritional programmes (low-calorie diet, regenerative diet, etc.)', de: 'Eines der Ernährungsprogramme (kalorienreduzierte Kost, regenerative Kost usw.)', fr: 'L’un des programmes nutritionnels (alimentation hypocalorique, alimentation régénérative, etc.)', es: 'Uno de los programas nutricionales (dieta baja en calorías, dieta regenerativa, etc.)' } },
+  { id: 'undecided', label: { en: 'I don’t know yet', de: 'Ich weiß es noch nicht', fr: 'Je ne sais pas encore', es: 'Todavía no lo sé' } },
+];
 
 export const CLINICS = [
   { id: 'ueberlingen', label: 'Buchinger Überlingen (Lake Constance)' },

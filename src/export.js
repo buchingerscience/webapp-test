@@ -23,7 +23,7 @@ export async function buildWorkbook() {
   const now = localNow();
 
   const users = db.prepare(`
-    SELECT u.id, u.participant_code, u.email, u.language, u.created_at, u.consent_at, u.consent_version, s.clinic, s.arrival_date, s.departure_date
+    SELECT u.id, u.participant_code, u.email, u.language, u.created_at, u.consent_at, u.consent_version, s.clinic, s.programme, s.arrival_date, s.departure_date
     FROM users u LEFT JOIN stays s ON s.user_id = u.id ORDER BY u.id`).all();
   const codeOf = Object.fromEntries(users.map((u) => [u.id, u.participant_code]));
   const instances = db.prepare(`SELECT * FROM instances ORDER BY user_id, open_date, id`).all();
@@ -32,16 +32,16 @@ export async function buildWorkbook() {
 
   // 1. Participants — the only sheet with email addresses
   sheet(wb, 'participants',
-    ['participant_code', 'email', 'language', 'clinic', 'arrival_date', 'departure_date', 'registered_at', 'consent_at', 'consent_version', 'questionnaires_completed', 'questionnaires_planned'],
+    ['participant_code', 'email', 'language', 'clinic', 'programme', 'arrival_date', 'departure_date', 'registered_at', 'consent_at', 'consent_version', 'questionnaires_completed', 'questionnaires_planned'],
     users.map((u) => ({
       ...u, registered_at: u.created_at,
       questionnaires_completed: doneCount[u.id] || 0,
       questionnaires_planned: instances.filter((i) => i.user_id === u.id).length,
     })));
 
-  // 2. Q1 — baseline and end of stay (pseudonymised)
+  // 2. Q1 — baseline, end of stay and follow-up one week after departure (timepoint column; pseudonymised)
   const q1Items = itemsOf('Q1').map((i) => i.id);
-  sheet(wb, 'Q1_baseline_end',
+  sheet(wb, 'Q1_baseline_end_followup',
     ['participant_code', 'timepoint', 'completed_at', 'meditation_date', ...q1Items, 'who5_raw_0_25', 'who5_percent_0_100', 'meaning_purpose_sum_0_20', 'growth_mean_0_5'],
     instances.filter((i) => i.kind === 'Q1' && i.completed_at).map((i) => {
       const a = JSON.parse(i.answers_json);
@@ -59,7 +59,7 @@ export async function buildWorkbook() {
   // 3. Q2 — daily pulse
   const q2Items = itemsOf('Q2').map((i) => i.id);
   sheet(wb, 'Q2_daily',
-    ['participant_code', 'day', 'date', 'completed_at', 'meditation_date', ...q2Items, 'clarity_mean_0_5', 'positive_mean_0_10'],
+    ['participant_code', 'day', 'date', 'completed_at', 'meditation_date', ...q2Items, 'clarity_mean_0_5', 'positive_mean_0_10', 'experience_mean_1_5'],
     instances.filter((i) => i.kind === 'Q2' && i.completed_at).map((i) => {
       const a = JSON.parse(i.answers_json);
       return {
@@ -68,6 +68,7 @@ export async function buildWorkbook() {
         ...Object.fromEntries(q2Items.map((k) => [k, a[k]])),
         clarity_mean_0_5: mean(['clarity_1', 'clarity_2', 'clarity_3'].map((k) => a[k])),
         positive_mean_0_10: mean(['perma_1', 'perma_2', 'perma_3'].map((k) => a[k])),
+        experience_mean_1_5: mean(['exp_immersed', 'exp_calm', 'exp_body', 'exp_enriched', 'exp_again'].map((k) => a[k])),
       };
     }));
 

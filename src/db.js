@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 `);
 
+// Added 25 Nov 2026: planned programme (fasting / nutrition / undecided), asked with the clinic
+if (!db.prepare('PRAGMA table_info(stays)').all().some((c) => c.name === 'programme')) {
+  db.exec('ALTER TABLE stays ADD COLUMN programme TEXT');
+}
 // Added 24 Nov 2026: which consent text the participant accepted
 if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'consent_version')) {
   db.exec('ALTER TABLE users ADD COLUMN consent_version TEXT');

@@ -1,5 +1,5 @@
 import { UI, LANG_LABELS, LOCALES } from './i18n.js?v=__V__';
-import { CLINICS, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js?v=__V__';
+import { CLINICS, PROGRAMMES, PROGRAMME_QUESTION, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js?v=__V__';
 import { practiceFor, fillMinutes, TAKE_HOME } from '/shared/programme.js?v=__V__';
 
 // ---------- state ----------
@@ -126,7 +126,8 @@ function renderItem(it, value, ro, ctx = {}) {
   } else if (r.type === 'labelled') {
     const labels = tx(r.labels);
     const values = [];
-    for (let v = r.max; v >= r.min; v--) values.push(v);
+    if (r.ascending) for (let v = r.min; v <= r.max; v++) values.push(v);
+    else for (let v = r.max; v >= r.min; v--) values.push(v);
     control = `<div class="labelled" role="radiogroup">${values.map((v, i) => `
       <label class="opt"><input type="radio" name="${name}" value="${v}" ${value === v ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${esc(labels[i])}</span></label>`).join('')}</div>`;
   } else if (r.type === 'choice') {
@@ -149,8 +150,8 @@ function renderItem(it, value, ro, ctx = {}) {
 
 function renderSections(kind, answers = {}, ro = false, slot, ctx = {}, paged = false) {
   return sectionsOf(kind, slot).map((s) => `
-    <section class="qsec ${paged ? 'page' : ''}">
-      <div class="qhead"><h3>${esc(tx(s.title))}</h3>
+    <section class="qsec ${paged ? 'page' : ''}" ${s.autohide ? 'data-autohide="1"' : ''}>
+      <div class="qhead">${s.title ? `<h3>${esc(tx(s.title))}</h3>` : ''}
       ${s.prompt ? `<p class="prompt">${esc(tx(s.prompt))}</p>` : ''}</div>
       ${s.items.map((it) => renderItem({ ...it, response: it.response || s.response }, answers[it.id], ro, ctx)).join('')}
     </section>`).join('');
@@ -160,6 +161,11 @@ function applyShowIf(form) {
     const src = form.querySelector(`input[name="${fs.dataset.showif}"]:checked`);
     const v = src ? Number(src.value) : null;
     fs.hidden = v === null || ('equals' in fs.dataset ? v !== Number(fs.dataset.equals) : v < Number(fs.dataset.min));
+  });
+  // A block whose questions are all conditional disappears with them (e.g. "How did you experience your meditation today?")
+  form.querySelectorAll('[data-autohide]').forEach((sec) => {
+    const items = [...sec.querySelectorAll('.item')];
+    sec.hidden = items.length > 0 && items.every((it) => it.hidden);
   });
 }
 
@@ -185,7 +191,7 @@ function saveDraft() {
   const form = root.querySelector('form[data-kind]');
   if (!form || form.closest('[hidden]')) return;
   const extra = {};
-  form.querySelectorAll('[data-keep]').forEach((el) => { extra[el.name] = el.value; });
+  form.querySelectorAll('[data-keep]').forEach((el) => { if (el.type !== 'radio' || el.checked) extra[el.name] = el.value; });
   state.draft[location.hash] = { answers: collect(form, form.dataset.kind), extra };
 }
 
@@ -294,6 +300,9 @@ function viewBaseline() {
         <h3>${t().yourStay}</h3>
         <label>${t().clinic}<select name="clinic" data-keep required><option value="">${t().chooseClinic}</option>
           ${CLINICS.map((c) => `<option value="${c.id}" ${ex.clinic === c.id ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>
+        <fieldset class="item programme-q" data-item="programme"><legend>${esc(tx(PROGRAMME_QUESTION))}</legend>
+          <div class="labelled" role="radiogroup">${PROGRAMMES.map((p) => `
+            <label class="opt"><input type="radio" name="programme" value="${p.id}" data-keep ${ex.programme === p.id ? 'checked' : ''}><span>${esc(tx(p.label))}</span></label>`).join('')}</div></fieldset>
         <div class="two">
           <label>${t().arrival}<input type="date" name="arrival_date" data-keep value="${esc(ex.arrival_date || '')}" required></label>
           <label>${t().departure}<input type="date" name="departure_date" data-keep value="${esc(ex.departure_date || '')}" required></label>
@@ -304,7 +313,7 @@ function viewBaseline() {
     </form>`, { hero: `<p class="kicker">${t().kicker}</p><h1>${t().welcomeTitle}</h1><p class="lede">${t().welcomeText}</p>` });
   wireForm('Q1', async (answers, form) => {
     const f = new FormData(form);
-    return api('/baseline', { clinic: f.get('clinic'), arrival_date: f.get('arrival_date'), departure_date: f.get('departure_date'), answers });
+    return api('/baseline', { clinic: f.get('clinic'), programme: f.get('programme'), arrival_date: f.get('arrival_date'), departure_date: f.get('departure_date'), answers });
   });
 }
 
@@ -404,6 +413,7 @@ function wireForm(kind, submit, doneHash = '#/journey') {
 function slotLabel(i) {
   if (i.slot === 'baseline') return [t().baselineLabel, t().baselineSub];
   if (i.slot === 'end') return [t().endLabel, `${t().endSub} · ${fmtDate(i.open_date)}`];
+  if (i.slot === 'followup') return [t().followLabel, `${t().followSub} · ${fmtDate(i.open_date)}`];
   const p = practiceFor(i.day_number, totalDays());
   return [t().dayTitle(i.day_number, p ? tx(p.title) : ''), `${fmtDate(i.open_date)}${p?.reinforcement ? ` · ${t().repeatOf(p.day)}` : ''}`];
 }
@@ -950,7 +960,8 @@ async function viewQuestionnaire(id) {
     });
   } else {
     // Welcome (read-only) or closing questionnaire: one section per step
-    const intro = isEnd ? t().endIntro : '';
+    const isFollow = inst.slot === 'followup';
+    const intro = isEnd ? t().endIntro : isFollow && !ro ? t().followIntro : '';
     shell(`
       ${ro ? statusBadge : ''}
       ${isEnd ? audioCard('farewell') : ''}
@@ -960,7 +971,7 @@ async function viewQuestionnaire(id) {
         ${ro ? '' : pagerNav()}
       </form>
       `, {
-      compact: true, medbar: isEnd ? {} : null, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
+      compact: true, medbar: isEnd || isFollow ? {} : null, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
     });
   }
   root.querySelector('#reveal')?.addEventListener('click', (e) => {

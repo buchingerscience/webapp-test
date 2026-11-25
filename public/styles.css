@@ -634,3 +634,7 @@ input:focus, select:focus { outline: 3px solid var(--mid-blue); outline-offset: 
 .ac-offline:empty { display: none; }
 .ac-offline.saved { color: var(--med); }
 .ac-offline.saved::before { content: '✓ '; }
+
+/* Programme question on the stay step (25 Nov 2026) */
+.stay .programme-q { margin: 4px 0 14px; }
+.stay .programme-q legend { font-size: 16px; line-height: 1.45; margin-bottom: 10px; }

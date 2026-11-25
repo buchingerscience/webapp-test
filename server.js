@@ -6,11 +6,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { db, nowIso, DB_PATH } from './src/db.js';
 import { localNow, statusOf, isDate, daysBetween, OPEN_HOUR, STUDY_TZ, UNLOCK_ALL } from './src/time.js';
-import { rebuildSchedule, MAX_STAY_DAYS } from './src/schedule.js';
+import { rebuildSchedule, ensureFollowups, MAX_STAY_DAYS } from './src/schedule.js';
 import { sendResetEmail, smtpConfigured, APP_URL } from './src/mailer.js';
 import { startScheduler, tick } from './src/scheduler.js';
 import { buildWorkbook } from './src/export.js';
-import { validateAnswers, LANGS, CLINICS } from './shared/questionnaires.js';
+import { validateAnswers, LANGS, CLINICS, PROGRAMMES } from './shared/questionnaires.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -84,15 +84,15 @@ function requireAdmin(req, res, next) {
 
 function journey(userId) {
   const now = localNow();
-  const stay = db.prepare('SELECT clinic, arrival_date, departure_date FROM stays WHERE user_id = ?').get(userId) || null;
+  const stay = db.prepare('SELECT clinic, programme, arrival_date, departure_date FROM stays WHERE user_id = ?').get(userId) || null;
   const rows = db.prepare(`SELECT id, kind, slot, day_number, open_date, close_date, completed_at FROM instances
-                           WHERE user_id = ? ORDER BY CASE slot WHEN 'baseline' THEN 0 WHEN 'end' THEN 2 ELSE 1 END, day_number`).all(userId);
+                           WHERE user_id = ? ORDER BY CASE slot WHEN 'baseline' THEN 0 WHEN 'end' THEN 2 WHEN 'followup' THEN 3 ELSE 1 END, day_number`).all(userId);
   return { stay, timeline: rows.map((r) => ({ ...r, status: statusOf(r, now) })), today: now.date, openHour: OPEN_HOUR };
 }
 
 // ---------- auth ----------
 // Change this date whenever the consent text in public/i18n.js changes; the admin export shows who accepted which version.
-const CONSENT_VERSION = '2026-11-24';
+const CONSENT_VERSION = '2026-11-25';
 app.post('/api/register', limit(10, 15 * 60000), (req, res) => {
   const { email, password, consent, language } = req.body || {};
   const e = String(email || '').trim().toLowerCase();
@@ -181,9 +181,10 @@ app.post('/api/language', requireUser, (req, res) => {
 });
 
 app.post('/api/baseline', requireUser, (req, res) => {
-  const { clinic, arrival_date: a, departure_date: d, answers } = req.body || {};
+  const { clinic, programme, arrival_date: a, departure_date: d, answers } = req.body || {};
   if (db.prepare(`SELECT 1 FROM instances WHERE user_id = ? AND slot = 'baseline'`).get(req.user.id)) return fail(res, 409, 'already_completed');
   if (!CLINICS.some((c) => c.id === clinic)) return fail(res, 400, 'invalid_clinic');
+  if (!PROGRAMMES.some((p) => p.id === programme)) return fail(res, 400, 'invalid_programme');
   if (!isDate(a) || !isDate(d)) return fail(res, 400, 'invalid_dates');
   const n = daysBetween(a, d);
   if (n < 1 || n > MAX_STAY_DAYS) return fail(res, 400, 'invalid_dates');
@@ -192,7 +193,7 @@ app.post('/api/baseline', requireUser, (req, res) => {
 
   const today = localNow().date;
   db.transaction(() => {
-    db.prepare('INSERT INTO stays (user_id, clinic, arrival_date, departure_date) VALUES (?, ?, ?, ?)').run(req.user.id, clinic, a, d);
+    db.prepare('INSERT INTO stays (user_id, clinic, programme, arrival_date, departure_date) VALUES (?, ?, ?, ?, ?)').run(req.user.id, clinic, programme, a, d);
     db.prepare(`INSERT INTO instances (user_id, kind, slot, open_date, close_date, email_status, completed_at, answers_json)
                 VALUES (?, 'Q1', 'baseline', ?, ?, 'skipped', ?, ?)`).run(req.user.id, today, today, nowIso(), JSON.stringify(v.clean));
     rebuildSchedule(req.user.id, a, d);
@@ -314,5 +315,7 @@ app.listen(PORT, () => {
   console.log(`Inner Calm listening on ${PORT} · db ${DB_PATH} · SMTP ${smtpConfigured ? 'on' : 'OFF (emails only logged)'} · ${STUDY_TZ} ${OPEN_HOUR}:00`);
   if (UNLOCK_ALL) console.warn('TEST MODE: UNLOCK_ALL_DAYS=1, every day of every journey is open. Never use this on the live server.');
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set — the admin page is disabled.');
+  const added = ensureFollowups();
+  if (added) console.log(`follow-up questionnaire added for ${added} existing participant(s)`);
   startScheduler();
 });

@@ -3,6 +3,7 @@
 // Day numbering (see README → "Study timeline"):
 //   D1 = arrival day … Dn = the day before departure  → one daily questionnaire (Q2) per night spent
 //   Departure day                                    → closing questionnaire (Q1 'end')
+//   Departure + 7 days                               → follow-up questionnaire at home (Q1 'followup'), open 7 days
 // Each Q2 opens at OPEN_HOUR on its day and can be answered until the end of the stay (departure day).
 // The closing Q1 opens on departure day and stays open for END_GRACE_DAYS more days.
 import { db } from './db.js';
@@ -10,6 +11,8 @@ import { addDays, daysBetween, hasOpened, localNow } from './time.js';
 
 export const END_GRACE_DAYS = 7;
 export const MAX_STAY_DAYS = 35;
+export const FOLLOWUP_AFTER_DAYS = 7;
+export const FOLLOWUP_OPEN_DAYS = 7;
 
 export function plannedSlots(arrival, departure) {
   const n = daysBetween(arrival, departure);
@@ -18,6 +21,8 @@ export function plannedSlots(arrival, departure) {
     slots.push({ kind: 'Q2', slot: `D${i + 1}`, day_number: i + 1, open_date: addDays(arrival, i), close_date: departure });
   }
   slots.push({ kind: 'Q1', slot: 'end', day_number: null, open_date: departure, close_date: addDays(departure, END_GRACE_DAYS) });
+  const fu = addDays(departure, FOLLOWUP_AFTER_DAYS);
+  slots.push({ kind: 'Q1', slot: 'followup', day_number: null, open_date: fu, close_date: addDays(fu, FOLLOWUP_OPEN_DAYS) });
   return slots;
 }
 
@@ -35,3 +40,16 @@ export const rebuildSchedule = db.transaction((userId, arrival, departure) => {
     insert.run({ user_id: userId, ...s, email_status: hasOpened(s.open_date, now) ? 'skipped' : 'pending' });
   }
 });
+
+/** Participants who signed up before the follow-up existed get one too (run at start-up; never touches answers). */
+export function ensureFollowups() {
+  const now = localNow();
+  const stays = db.prepare(`SELECT s.user_id, s.departure_date FROM stays s
+    WHERE NOT EXISTS (SELECT 1 FROM instances i WHERE i.user_id = s.user_id AND i.slot = 'followup')`).all();
+  for (const st of stays) {
+    const fu = addDays(st.departure_date, FOLLOWUP_AFTER_DAYS);
+    const s = { kind: 'Q1', slot: 'followup', day_number: null, open_date: fu, close_date: addDays(fu, FOLLOWUP_OPEN_DAYS) };
+    insert.run({ user_id: st.user_id, ...s, email_status: hasOpened(s.open_date, now) ? 'skipped' : 'pending' });
+  }
+  return stays.length;
+}

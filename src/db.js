@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 `);
 
+// Added 27 Nov 2026: room number (optional) and a log of what the clinic staff page did
+if (!db.prepare('PRAGMA table_info(stays)').all().some((c) => c.name === 'room')) {
+  db.exec('ALTER TABLE stays ADD COLUMN room TEXT');
+}
+db.exec(`CREATE TABLE IF NOT EXISTS staff_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER,
+  action     TEXT NOT NULL,
+  ip         TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
 // Added 25 Nov 2026: planned programme (fasting / nutrition / undecided), asked with the clinic
 if (!db.prepare('PRAGMA table_info(stays)').all().some((c) => c.name === 'programme')) {
   db.exec('ALTER TABLE stays ADD COLUMN programme TEXT');

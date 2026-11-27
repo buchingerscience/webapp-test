@@ -14,6 +14,8 @@ import { validateAnswers, LANGS, CLINICS, PROGRAMMES } from './shared/questionna
 
 const PORT = Number(process.env.PORT || 3000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+// Clinic staff page (/staff): read-only list of participants + "new temporary password". No downloads, no editing.
+const STAFF_PASSWORD = process.env.STAFF_PASSWORD || '';
 const SECURE_COOKIES = APP_URL.startsWith('https://');
 const SESSION_DAYS = 60;
 
@@ -92,7 +94,7 @@ function journey(userId) {
 
 // ---------- auth ----------
 // Change this date whenever the consent text in public/i18n.js changes; the admin export shows who accepted which version.
-const CONSENT_VERSION = '2026-11-25';
+const CONSENT_VERSION = '2026-11-27';
 app.post('/api/register', limit(10, 15 * 60000), (req, res) => {
   const { email, password, consent, language } = req.body || {};
   const e = String(email || '').trim().toLowerCase();
@@ -181,7 +183,8 @@ app.post('/api/language', requireUser, (req, res) => {
 });
 
 app.post('/api/baseline', requireUser, (req, res) => {
-  const { clinic, programme, arrival_date: a, departure_date: d, answers } = req.body || {};
+  const { clinic, programme, room, arrival_date: a, departure_date: d, answers } = req.body || {};
+  const roomNo = String(room ?? '').trim().slice(0, 20) || null;
   if (db.prepare(`SELECT 1 FROM instances WHERE user_id = ? AND slot = 'baseline'`).get(req.user.id)) return fail(res, 409, 'already_completed');
   if (!CLINICS.some((c) => c.id === clinic)) return fail(res, 400, 'invalid_clinic');
   if (!PROGRAMMES.some((p) => p.id === programme)) return fail(res, 400, 'invalid_programme');
@@ -193,7 +196,7 @@ app.post('/api/baseline', requireUser, (req, res) => {
 
   const today = localNow().date;
   db.transaction(() => {
-    db.prepare('INSERT INTO stays (user_id, clinic, programme, arrival_date, departure_date) VALUES (?, ?, ?, ?, ?)').run(req.user.id, clinic, programme, a, d);
+    db.prepare('INSERT INTO stays (user_id, clinic, programme, room, arrival_date, departure_date) VALUES (?, ?, ?, ?, ?, ?)').run(req.user.id, clinic, programme, roomNo, a, d);
     db.prepare(`INSERT INTO instances (user_id, kind, slot, open_date, close_date, email_status, completed_at, answers_json)
                 VALUES (?, 'Q1', 'baseline', ?, ?, 'skipped', ?, ?)`).run(req.user.id, today, today, nowIso(), JSON.stringify(v.clean));
     rebuildSchedule(req.user.id, a, d);
@@ -248,7 +251,8 @@ app.get('/api/admin/overview', requireAdmin, (req, res) => {
     if (s === 'missed') p.missed++;
   });
   const emails = db.prepare('SELECT id, to_email, type, subject, status, error, link, created_at FROM email_log ORDER BY id DESC LIMIT 100').all();
-  res.json({
+  const staffLog = db.prepare(`SELECT l.created_at, l.action, u.participant_code, u.email FROM staff_log l LEFT JOIN users u ON u.id = l.user_id ORDER BY l.id DESC LIMIT 50`).all();
+  res.json({ staffLog,
     users: users.map((u) => ({ ...u, ...(per[u.id] || { done: 0, missed: 0, planned: 0 }) })),
     emails, smtpConfigured, now, openHour: OPEN_HOUR, timeZone: STUDY_TZ,
   });
@@ -289,6 +293,90 @@ app.post('/api/admin/run-scheduler', requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- clinic staff page ----------
+// Colleagues at reception can see who takes part and help a guest who forgot their password.
+// Passwords are stored encrypted (bcrypt) and can never be shown: staff can only set a NEW temporary password.
+const staffTokens = new Map();
+function requireStaff(req, res, next) {
+  const t = cookies(req).ic_staff;
+  const exp = t && staffTokens.get(sha256(t));
+  if (!exp || exp < Date.now()) return fail(res, 401, 'staff_required');
+  next();
+}
+const staffLog = (userId, action, req) => db.prepare('INSERT INTO staff_log (user_id, action, ip) VALUES (?, ?, ?)').run(userId, action, req.ip);
+
+app.post('/api/staff/login', limit(10, 15 * 60000), (req, res) => {
+  const p = String(req.body?.password || '');
+  const ok = STAFF_PASSWORD.length >= 8 && p.length === STAFF_PASSWORD.length && crypto.timingSafeEqual(Buffer.from(p), Buffer.from(STAFF_PASSWORD));
+  if (!ok) return fail(res, 401, 'wrong_password');
+  const t = token();
+  staffTokens.set(sha256(t), Date.now() + 12 * 3600000);
+  setCookie(res, 'ic_staff', t, 0.5);
+  staffLog(null, 'login', req);
+  res.json({ ok: true });
+});
+app.post('/api/staff/logout', (req, res) => {
+  const t = cookies(req).ic_staff;
+  if (t) staffTokens.delete(sha256(t));
+  setCookie(res, 'ic_staff', '', 0);
+  res.json({ ok: true });
+});
+
+app.get('/api/staff/participants', requireStaff, (req, res) => {
+  const now = localNow();
+  const users = db.prepare(`SELECT u.id, u.participant_code, u.email, u.language, u.created_at, s.clinic, s.programme, s.room, s.arrival_date, s.departure_date
+                            FROM users u LEFT JOIN stays s ON s.user_id = u.id ORDER BY u.id DESC`).all();
+  const inst = db.prepare('SELECT user_id, kind, slot, open_date, close_date, completed_at, answers_json FROM instances').all();
+  const per = {};
+  inst.forEach((i) => {
+    const p = (per[i.user_id] ||= { done: 0, planned: 0, missed: 0, today: null, last: null, about: {} });
+    p.planned++;
+    const st = statusOf(i, now);
+    if (st === 'done') p.done++;
+    if (st === 'missed') p.missed++;
+    if (i.kind === 'Q2' && i.open_date === now.date) p.today = st;
+    if (i.completed_at && (!p.last || i.completed_at > p.last)) p.last = i.completed_at;
+    if (i.slot === 'baseline' && i.answers_json) {
+      const a = JSON.parse(i.answers_json);
+      p.about = { age: a.age ?? null, sex: a.sex ?? null, country: a.country ?? null };
+    }
+  });
+  const clinicName = Object.fromEntries(CLINICS.map((c) => [c.id, c.label]));
+  res.json({
+    now,
+    participants: users.map((u) => {
+      const p = per[u.id] || { done: 0, planned: 0, missed: 0, today: null, last: null, about: {} };
+      const where = !u.arrival_date ? 'registered' : now.date < u.arrival_date ? 'upcoming' : now.date <= u.departure_date ? 'in_clinic' : 'left';
+      return {
+        id: u.id, code: u.participant_code, email: u.email, language: u.language, registered: u.created_at,
+        clinic: clinicName[u.clinic] || u.clinic || null, programme: u.programme, room: u.room,
+        arrival: u.arrival_date, departure: u.departure_date, where,
+        age: p.about.age ?? null, sex: p.about.sex ?? null, country: p.about.country ?? null,
+        done: p.done, planned: p.planned, missed: p.missed, today: p.today, last: p.last,
+      };
+    }),
+  });
+});
+
+// A readable temporary password (no 0/O, 1/l/I), e.g. "kq7m-4tzp"
+function tempPassword() {
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const pick = () => abc[crypto.randomInt(abc.length)];
+  return `${Array.from({ length: 4 }, pick).join('')}-${Array.from({ length: 4 }, pick).join('')}`;
+}
+app.post('/api/staff/participants/:id/temp-password', requireStaff, limit(30, 15 * 60000), (req, res) => {
+  const u = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!u) return fail(res, 404, 'not_found');
+  const pw = tempPassword();
+  db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(pw, 10), u.id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);           // logged-in phones must log in again
+    db.prepare('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL').run(nowIso(), u.id);
+  })();
+  staffLog(u.id, 'temporary_password', req);
+  res.json({ ok: true, password: pw });
+});
+
 // ---------- static ----------
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 // Every deploy gets a new version stamp. HTML/JS files are served with "?v=__V__" replaced by it,
@@ -309,12 +397,13 @@ function versioned(dir, aliases = {}) {
 }
 const noCache = { setHeaders: (res) => res.set('Cache-Control', 'no-cache') };
 app.use('/shared', versioned('shared'), express.static(path.resolve('shared'), noCache));
-app.use(versioned('public', { '/': '/index.html', '/admin': '/admin.html' }), express.static(path.resolve('public'), { ...noCache, extensions: ['html'] }));
+app.use(versioned('public', { '/': '/index.html', '/admin': '/admin.html', '/staff': '/staff.html' }), express.static(path.resolve('public'), { ...noCache, extensions: ['html'] }));
 
 app.listen(PORT, () => {
   console.log(`Inner Calm listening on ${PORT} · db ${DB_PATH} · SMTP ${smtpConfigured ? 'on' : 'OFF (emails only logged)'} · ${STUDY_TZ} ${OPEN_HOUR}:00`);
   if (UNLOCK_ALL) console.warn('TEST MODE: UNLOCK_ALL_DAYS=1, every day of every journey is open. Never use this on the live server.');
   if (!ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is not set — the admin page is disabled.');
+  if (!STAFF_PASSWORD) console.warn('STAFF_PASSWORD is not set — the clinic staff page (/staff) is disabled.');
   const added = ensureFollowups();
   if (added) console.log(`follow-up questionnaire added for ${added} existing participant(s)`);
   startScheduler();

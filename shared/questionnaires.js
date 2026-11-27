@@ -140,9 +140,34 @@ function meditationSections(when, only) {
   ];
 }
 
+// Countries (ISO 3166-1 alpha-2 codes; names are shown in the app's language by the browser). Most frequent first.
+export const COMMON_COUNTRIES = ["DE", "CH", "AT", "FR", "ES", "IT", "GB", "NL", "BE", "LU", "US"];
+export const COUNTRIES = ["AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AR", "AS", "AT", "AU", "AW", "AX", "AZ", "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BW", "BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CW", "CX", "CY", "CZ", "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE", "EG", "EH", "ER", "ES", "ET", "FI", "FJ", "FK", "FM", "FO", "FR", "GA", "GB", "GD", "GE", "GF", "GG", "GH", "GI", "GL", "GM", "GN", "GP", "GQ", "GR", "GT", "GU", "GW", "GY", "HK", "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IM", "IN", "IQ", "IR", "IS", "IT", "JE", "JM", "JO", "JP", "KE", "KG", "KH", "KI", "KM", "KN", "KP", "KR", "KW", "KY", "KZ", "LA", "LB", "LC", "LI", "LK", "LR", "LS", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MF", "MG", "MH", "MK", "ML", "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW", "MX", "MY", "MZ", "NA", "NC", "NE", "NF", "NG", "NI", "NL", "NO", "NP", "NR", "NU", "NZ", "OM", "PA", "PE", "PF", "PG", "PH", "PK", "PL", "PM", "PN", "PR", "PS", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA", "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO", "SR", "SS", "ST", "SV", "SX", "SY", "SZ", "TC", "TD", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR", "TT", "TV", "TW", "TZ", "UA", "UG", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI", "VN", "VU", "WF", "WS", "XK", "YE", "YT", "ZA", "ZM", "ZW"];
+
+// Baseline only — about the participant (27 Nov 2026)
+const ABOUT_YOU = {
+  id: 'about',
+  only: 'baseline',
+  title: { en: 'About you', de: 'Über Sie', fr: 'À propos de vous', es: 'Sobre usted' },
+  items: [
+    { id: 'sex', text: { en: 'What is your sex?', de: 'Welches Geschlecht haben Sie?', fr: 'Quel est votre sexe ?', es: '¿Cuál es su sexo?' },
+      response: { type: 'choice', options: [
+        { value: 1, label: { en: 'Female', de: 'Weiblich', fr: 'Femme', es: 'Mujer' } },
+        { value: 2, label: { en: 'Male', de: 'Männlich', fr: 'Homme', es: 'Hombre' } },
+        { value: 3, label: { en: 'Diverse', de: 'Divers', fr: 'Autre', es: 'Otro' } },
+        { value: 0, label: { en: 'Prefer not to say', de: 'Keine Angabe', fr: 'Je préfère ne pas répondre', es: 'Prefiero no decirlo' } },
+      ] } },
+    { id: 'age', text: { en: 'How old are you?', de: 'Wie alt sind Sie?', fr: 'Quel âge avez-vous ?', es: '¿Qué edad tiene?' },
+      response: { type: 'number', min: 18, max: 110, unit: { en: 'years', de: 'Jahre', fr: 'ans', es: 'años' } } },
+    { id: 'country', text: { en: 'What is your country of origin?', de: 'Was ist Ihr Herkunftsland?', fr: 'Quel est votre pays d’origine ?', es: '¿Cuál es su país de origen?' },
+      response: { type: 'country' } },
+  ],
+};
+
 export const QUESTIONNAIRES = {
   Q1: {
     sections: [
+      ABOUT_YOU,
       {
         id: 'who5',
         title: { en: 'Well-being', de: 'Wohlbefinden', fr: 'Bien-être', es: 'Bienestar' },
@@ -294,8 +319,14 @@ export function validateAnswers(kind, answers, slot) {
     if (!isShown(it, { ...answers, ...clean })) { clean[it.id] = null; continue; }
     const raw = answers[it.id];
     if (raw === undefined || raw === null || raw === '') { errors.push(it.id); continue; }
-    const v = Number(raw);
     const r = it.response;
+    if (r.type === 'country') {
+      const c = String(raw).toUpperCase();
+      if (!COUNTRIES.includes(c)) { errors.push(it.id); continue; }
+      clean[it.id] = c;
+      continue;
+    }
+    const v = Number(raw);
     if (r.type === 'choice') {
       if (!r.options.some((o) => o.value === v)) { errors.push(it.id); continue; }
       clean[it.id] = v;

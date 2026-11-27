@@ -22,6 +22,7 @@ This file has two parts. **Part 1** explains what exists and how the pieces fit 
 | **Shared nginx (HTTPS for all 5 sites)** | `/opt/webapp-fast-track/nginx.conf`, which belongs to the FAST-TRACK app |
 | **Live site** | https://innercalm.buchinger-science.com |
 | **Admin page** | https://innercalm.buchinger-science.com/admin (password = `ADMIN_PASSWORD` in `.env`) |
+| **Clinic staff page** | https://innercalm.buchinger-science.com/staff (password = `STAFF_PASSWORD` in `.env`): read-only participant list, temporary passwords. No downloads. |
 | **Domain and DNS** | Hostinger → buchinger-science.com → DNS (A records `innercalm` and `test` → `31.97.68.87`, plus Brevo records; `test` is kept as an alias) |
 | **Email sending** | Brevo SMTP. Sender `study@buchinger-science.com`, replies go to `buchinger.forschung@gmail.com`. The SMTP key expires after **90 days without sending**. |
 
@@ -48,6 +49,8 @@ A GitHub Action (`.github/workflows/deploy.yml`) can do the server part automati
 - **Longer stays:** from day 9, days 2–8 repeat as "Reinforcement".
 - **Departure day:** a closing questionnaire and a take-home card.
 - **Admin:** participant list, email log, date corrections, an **Excel export** (with meditation log and summary) and the raw **SQLite** download.
+- **Clinic staff (/staff):** read-only list (email, room, clinic, programme, dates, age, sex, country, how many questionnaires answered, today's journal). The only action: create a **temporary password** for a guest who forgot theirs. Every staff login and temporary password is listed on the admin page.
+- **No internet:** answers saved without a connection are kept on the phone (shown as "Waiting to send") and sent automatically once the phone is online; only then does the app say "Sent". The app also opens without internet once it has been used on that phone.
 - **Languages:** EN / DE / FR / ES. Design follows the Buchinger CI (brand fonts and logo, "Buchinger Times" style).
 
 ### Session history (22 Oct – 9 Nov 2026)

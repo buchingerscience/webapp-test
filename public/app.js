@@ -1,11 +1,11 @@
 import { UI, LANG_LABELS, LOCALES } from './i18n.js?v=__V__';
-import { CLINICS, PROGRAMMES, PROGRAMME_QUESTION, LANGS, itemsOf, sectionsOf } from '/shared/questionnaires.js?v=__V__';
+import { CLINICS, PROGRAMMES, PROGRAMME_QUESTION, LANGS, COUNTRIES, COMMON_COUNTRIES, itemsOf, sectionsOf, validateAnswers } from '/shared/questionnaires.js?v=__V__';
 import { practiceFor, fillMinutes, TAKE_HOME } from '/shared/programme.js?v=__V__';
 
 // ---------- state ----------
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } }, // false: private mode / storage blocked
 };
 const state = {
   lang: LANGS.includes(store.get('ic_lang')) ? store.get('ic_lang') : (LANGS.find((l) => navigator.language?.startsWith(l)) || 'en'),
@@ -13,6 +13,7 @@ const state = {
   draft: {},
   config: null, // { audio: { intro: { en: url|null, … }, … }, testMode }
   medOpen: null, // which meditation panel is open ('silent' | 'm5' | 'm10' | 'm20')
+  stale: false, // true when the data shown came from the phone's copy (no internet)
 };
 const t = () => UI[state.lang];
 // Navigate, re-rendering even if we are already on that address
@@ -28,15 +29,93 @@ const fmtDate = (iso, opts = { weekday: 'short', day: 'numeric', month: 'short' 
   new Intl.DateTimeFormat(LOCALES[state.lang], { ...opts, timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 
 async function api(path, body, method) {
-  const res = await fetch(`/api${path}`, {
-    method: method || (body ? 'POST' : 'GET'),
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  });
+  // Weak clinic wifi: give up after a while and treat it as "no internet" (answers are then kept on the phone).
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctl && setTimeout(() => ctl.abort(), body ? 20000 : 15000);
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: method || (body ? 'POST' : 'GET'),
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+      signal: ctl?.signal,
+    });
+  } catch {
+    throw Object.assign(new Error('offline'), { offline: true });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (res.headers.get('X-IC-Offline')) state.stale = true; // answered from the phone's copy by sw.js
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || 'generic'), { status: res.status, data });
   return data;
+}
+
+// ---------- answers waiting to be sent (no internet) ----------
+// A questionnaire saved without internet is NOT reported as saved. Its answers are kept in this browser
+// (localStorage, per participant) and sent automatically when the connection is back; only then does the
+// app say "Sent". Entries leave the list only when the server has accepted them (or refused them for good).
+const OUTBOX = 'ic_outbox';
+const outbox = {
+  all() { try { return JSON.parse(store.get(OUTBOX) || '[]'); } catch { return []; } },
+  mine() { return this.all().filter((e) => e.uid === state.me?.user?.code); },
+  get(id) { return this.mine().find((e) => e.id === String(id)); },
+  put(e) { return store.set(OUTBOX, JSON.stringify([...this.all().filter((x) => !(x.id === e.id && x.uid === e.uid)), e])) && !!this.get(e.id); },
+  drop(id) { store.set(OUTBOX, JSON.stringify(this.all().filter((x) => !(x.id === String(id) && x.uid === state.me?.user?.code)))); },
+};
+let flushing = false;
+async function flushOutbox(manual = false) {
+  if (flushing || !state.me?.user) return;
+  const mine = outbox.mine();
+  if (!mine.length) return;
+  flushing = true;
+  let sent = 0;
+  let failed = 0;
+  try {
+    for (const e of mine) {
+      try {
+        const r = await api(`/instances/${e.id}`, { answers: e.answers });
+        outbox.drop(e.id);
+        sent++;
+        Object.assign(state.me, { stay: r.stay, timeline: r.timeline });
+      } catch (err) {
+        if (err.offline || err.status === 401 || !err.status || err.status >= 500) break; // try again later / after login
+        if (err.message === 'not_open_done') { outbox.drop(e.id); sent++; continue; }      // it had already arrived
+        outbox.drop(e.id); failed++;                                                      // refused for good (e.g. closed)
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+  if (sent || failed) {
+    state.flash = failed ? t().outboxFailed : t().outboxSent;
+    const onJourney = ['', '#', '#/', '#/journey'].includes(location.hash);
+    if (onJourney || !root.querySelector('form[data-kind]:not(.ro)')) route(true);
+  } else if (manual) {
+    const n = root.querySelector('.outbox-note p');
+    if (n) n.textContent = t().queuedOffline;
+  }
+}
+window.addEventListener('online', () => flushOutbox());
+setInterval(() => { if (outbox.mine().length) flushOutbox(); }, 30000);
+
+// Opening times computed on the phone (used only when offline, so a day that opened at 06:00 can still be filled in)
+function berlinNow() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, hour: Number(p.hour) };
+}
+function liveStatus(i, now = berlinNow(), openHour = state.me?.openHour ?? 6) {
+  if (i.completed_at || i.status === 'done') return 'done';
+  const opened = i.open_date < now.date || (i.open_date === now.date && now.hour >= openHour);
+  if (!opened) return i.status === 'open' ? 'open' : 'locked';
+  return now.date <= i.close_date ? 'open' : 'missed';
+}
+function applyLiveStatus(me) {
+  const now = berlinNow();
+  me.today = now.date;
+  me.timeline = me.timeline.map((i) => ({ ...i, status: liveStatus(i, now, me.openHour) }));
 }
 const errText = (e) => t()[`err_${e.message}`] || t().err_generic;
 
@@ -84,6 +163,7 @@ function shell(inner, { narrow = false, hero = '', cover = false, compact = fals
   root.querySelector('#lang').addEventListener('change', (e) => setLang(e.target.value));
   root.querySelector('#logout')?.addEventListener('click', async () => {
     await api('/logout', {}).catch(() => {});
+    try { await caches?.delete('ic-api-v1'); } catch { /* no cache */ }
     state.me = null;
     go('#/login');
   });
@@ -137,6 +217,14 @@ function renderItem(it, value, ro, ctx = {}) {
     control = `<div class="yesno" role="radiogroup">
       <label class="pill"><input type="radio" name="${name}" value="1" ${value === 1 ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${t().yes}</span></label>
       <label class="pill"><input type="radio" name="${name}" value="0" ${value === 0 ? 'checked' : ''} ${ro ? 'disabled' : ''}><span>${t().no}</span></label></div>`;
+  } else if (r.type === 'country') {
+    let dn = null;
+    try { dn = new Intl.DisplayNames([LOCALES[state.lang] || state.lang], { type: 'region' }); } catch { /* old browser: codes */ }
+    const cname = (c) => dn?.of(c) || c;
+    const opt = (c) => `<option value="${c}" ${value === c ? 'selected' : ''}>${esc(cname(c))}</option>`;
+    const rest = COUNTRIES.filter((c) => !COMMON_COUNTRIES.includes(c)).sort((a, b) => cname(a).localeCompare(cname(b), state.lang));
+    control = `<select class="country" name="${name}" required ${ro ? 'disabled' : ''}><option value="">${esc(t().chooseCountry)}</option>
+      <optgroup label="—">${COMMON_COUNTRIES.map(opt).join('')}</optgroup><optgroup label="—">${rest.map(opt).join('')}</optgroup></select>`;
   } else if (r.type === 'number') {
     control = `<div class="num"><input type="number" inputmode="numeric" name="${name}" min="${r.min}" max="${r.max}" step="1" value="${value ?? ''}" ${ro ? 'disabled' : ''}><span>${esc(tx(r.unit))}</span></div>`;
   }
@@ -182,8 +270,10 @@ function collect(form, kind, slot = form.dataset.slot) {
   for (const it of itemsOf(kind, slot)) {
     const checked = form.querySelector(`input[name="${it.id}"]:checked`);
     const num = form.querySelector(`input[type="number"][name="${it.id}"]`);
+    const sel = form.querySelector(`select[name="${it.id}"]`);
     if (checked) answers[it.id] = Number(checked.value);
     else if (num && num.value !== '') answers[it.id] = Number(num.value);
+    else if (sel && sel.value !== '') answers[it.id] = sel.value;
   }
   return answers;
 }
@@ -273,12 +363,14 @@ function viewForgot() {
       <p class="muted">${t().forgotText}</p>
       <label>${t().email}<input name="email" type="email" autocomplete="email" required></label>
       <p class="ok" id="ok" role="status"></p>
+      <p class="muted small" id="delay" hidden>${t().linkDelay}</p>
       <button class="btn">${t().sendLink}</button>
     </form>`, `<a href="#/login">${t().back}</a>`);
   root.querySelector('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     await api('/forgot', { email: new FormData(e.target).get('email') }).catch(() => {});
     root.querySelector('#ok').textContent = t().linkSent;
+    root.querySelector('#delay').hidden = false;
   });
 }
 
@@ -315,13 +407,14 @@ function viewBaseline() {
           <label>${t().arrival}<input type="date" name="arrival_date" data-keep value="${esc(ex.arrival_date || '')}" required></label>
           <label>${t().departure}<input type="date" name="departure_date" data-keep value="${esc(ex.departure_date || '')}" required></label>
         </div>
+        <label>${t().room} <span class="opt-label">(${t().optional})</span><input type="text" name="room" data-keep maxlength="20" autocomplete="off" value="${esc(ex.room || '')}"><small>${t().roomHint}</small></label>
       </section>
       ${renderSections('Q1', d.answers, false, 'baseline', {}, true)}
       ${pagerNav()}
     </form>`, { hero: `<p class="kicker">${t().kicker}</p><h1>${t().welcomeTitle}</h1><p class="lede">${t().welcomeText}</p>` });
   wireForm('Q1', async (answers, form) => {
     const f = new FormData(form);
-    return api('/baseline', { clinic: f.get('clinic'), programme: f.get('programme'), arrival_date: f.get('arrival_date'), departure_date: f.get('departure_date'), answers });
+    return api('/baseline', { clinic: f.get('clinic'), programme: f.get('programme'), room: f.get('room'), arrival_date: f.get('arrival_date'), departure_date: f.get('departure_date'), answers });
   });
 }
 
@@ -358,7 +451,7 @@ function setupPager(form) {
     document.querySelector('.masthead')?.classList.toggle('stepped', i > 0);
     if (scroll) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const isAnswered = (it) => it.querySelector('input:checked') || [...it.querySelectorAll('input[type=number]')].some((x) => x.value !== '');
+  const isAnswered = (it) => it.querySelector('input:checked') || [...it.querySelectorAll('input[type=number], select')].some((x) => x.value !== '');
   next.addEventListener('click', () => {
     const page = pages[i];
     const emptyFields = [...page.querySelectorAll('select[required], input[type=date][required]')].filter((x) => !x.value);
@@ -377,7 +470,7 @@ function setupPager(form) {
 const saveBar = () => `
   <div class="savebar"><p class="err" id="err" role="alert"></p><p class="muted small">${t().saveNoteShort}</p>
   <button class="btn" id="save">${t().save}</button></div>`;
-function wireForm(kind, submit, doneHash = '#/journey') {
+function wireForm(kind, submit, doneHash = '#/journey', queueId = null) {
   const form = root.querySelector('#f');
   applyShowIf(form);
   const pager = form.dataset.paged ? setupPager(form) : null;
@@ -385,7 +478,7 @@ function wireForm(kind, submit, doneHash = '#/journey') {
     const item = e.target.closest('.item');
     if (!item) return;
     item.classList.remove('missing');
-    item.classList.toggle('answered', e.target.type === 'number' ? e.target.value !== '' : true);
+    item.classList.toggle('answered', e.target.type === 'number' || e.target.tagName === 'SELECT' ? e.target.value !== '' : true);
   };
   form.addEventListener('change', (e) => { applyShowIf(form); markAnswered(e); });
   form.addEventListener('input', (e) => { if (e.target.type === 'number') markAnswered(e); });
@@ -406,6 +499,19 @@ function wireForm(kind, submit, doneHash = '#/journey') {
     } catch (err) {
       btn.disabled = false;
       btn.textContent = label;
+      if (err.offline) {
+        if (!queueId) { errEl.textContent = t().err_offline; return; } // e.g. welcome questionnaire: answers stay on screen
+        const answers = collect(form, kind);
+        const v = validateAnswers(kind, answers, form.dataset.slot);
+        if (!v.ok) { pager?.goToItem(v.errors[0]); markMissing(form, v.errors); errEl.textContent = t().missing; return; }
+        // Not sent: keep the answers on this phone; they are sent automatically later. Never reported as "saved".
+        if (outbox.put({ id: String(queueId), uid: state.me?.user?.code, kind, answers, ts: Date.now() })) {
+          delete state.draft[location.hash];
+          state.flash = t().queuedOffline;
+          go('#/journey');
+        } else errEl.textContent = t().offlineNoStore;
+        return;
+      }
       if (err.message === 'incomplete') {
         const missing = err.data.missing || [];
         pager?.goToItem(missing[0]);
@@ -620,6 +726,14 @@ const player = { el: null, src: null, key: null, pendingSeek: null };
 const AUDIO_CACHE = 'ic-audio-v1';
 const canCache = 'serviceWorker' in navigator && 'caches' in window && window.isSecureContext;
 if (canCache) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// Keep the app itself (page, scripts, styles, fonts) on the phone so it also opens without internet.
+if (canCache) {
+  setTimeout(() => navigator.serviceWorker.ready.then((reg) => {
+    const urls = [`${location.origin}/`, ...performance.getEntriesByType('resource').map((e) => e.name)]
+      .filter((u) => u.startsWith(location.origin) && !u.includes('/api/') && !u.includes('/audio/'));
+    reg.active?.postMessage({ type: 'cache-shell', urls: [...new Set(urls)] });
+  }).catch(() => {}), 4000);
+}
 const offline = {}; // absolute url -> 'saving' | 'saved'
 const absUrl = (u) => new URL(u, location.href).href;
 async function checkCached(url) {
@@ -842,6 +956,7 @@ const STATUS_ICON = {
   open: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
   locked: '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="9" width="10" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.5 9V6.8a2.5 2.5 0 015 0V9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   missed: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
+  pending: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 6.5V10l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
 };
 
 function viewJourney() {
@@ -851,11 +966,13 @@ function viewJourney() {
   const total = totalDays();
   const todayItem = timeline.find((i) => i.slot !== 'baseline' && i.open_date === today && i.status !== 'locked');
   const dayNo = todayItem?.day_number || timeline.filter((i) => i.kind === 'Q2' && i.open_date <= today).length;
+  const pending = new Set(outbox.mine().map((e) => e.id));
   const row = (i) => {
     const [label, sub] = slotLabel(i);
+    const st = pending.has(String(i.id)) && i.status !== 'done' ? 'pending' : i.status;
     const inner = `<span class="row-text"><strong>${esc(label)}</strong><span class="row-sub">${i === todayItem ? `<b class="today-tag">${t().todayRow}</b> · ` : ''}${esc(sub)}</span></span>
-      <span class="row-status ${i.status}" title="${esc(t()[`st_${i.status}`])}">${STATUS_ICON[i.status] || ''}<span class="sr">${esc(t()[`st_${i.status}`])}</span></span>`;
-    return `<li class="row ${i.status} ${i === todayItem ? 'is-today' : ''}">${i.status === 'locked' ? `<span class="row-link">${inner}</span>` : `<a class="row-link" href="#/q/${i.id}">${inner}</a>`}</li>`;
+      <span class="row-status ${st}" title="${esc(t()[`st_${st}`])}">${STATUS_ICON[st] || ''}<span class="sr">${esc(t()[`st_${st}`])}</span></span>`;
+    return `<li class="row ${st} ${i === todayItem ? 'is-today' : ''}">${st === 'locked' ? `<span class="row-link">${inner}</span>` : `<a class="row-link" href="#/q/${i.id}">${inner}</a>`}</li>`;
   };
   const lastDay = timeline.find((i) => i.kind === 'Q2' && i.day_number === total);
   const farewellToday = todayItem && (todayItem.slot === 'end' || todayItem === lastDay);
@@ -863,12 +980,15 @@ function viewJourney() {
   const todayCard = todayItem ? (() => {
     const [label, sub] = slotLabel(todayItem);
     const done = todayItem.status === 'done';
+    const waiting = pending.has(String(todayItem.id)) && !done;
     return `<a class="today-card ${done ? 'done' : ''}" href="#/q/${todayItem.id}">
       <span class="today-label">${t().today} · <span class="nowrap">${esc(sub)}</span></span>
       <strong>${esc(label)}</strong>
-      <span class="btn ${done ? 'ghost' : ''}">${done ? t().view : t().openToday}</span></a>`;
+      <span class="btn ${done || waiting ? 'ghost' : ''}">${waiting ? t().st_pending : done ? t().view : t().openToday}</span></a>`;
   })() : '';
   shell(`
+    ${pending.size ? `<div class="outbox-note" role="status"><p>${esc(t().outboxWaiting(pending.size))}</p><button type="button" class="link small" id="send-now">${esc(t().sendNow)}</button></div>` : ''}
+    ${state.stale ? `<p class="offline-note">${esc(t().offlineView)}</p>` : ''}
     ${allDone ? `<div class="card done-all">${t().allDone}</div>` : todayCard}
     ${farewellToday ? audioCard('farewell') : ''}
     <ol class="rows">${timeline.map(row).join('')}</ol>
@@ -882,15 +1002,24 @@ function viewJourney() {
       ${total && dayNo ? `<div class="progress" role="img" aria-label="${esc(t().dayOf(Math.min(dayNo, total), total))}"><span style="width:${Math.round((Math.min(dayNo, total) / total) * 100)}%"></span></div>
       <p class="kicker">${t().dayOf(Math.min(dayNo, total), total)}</p>` : ''}`,
   });
+  root.querySelector('#send-now')?.addEventListener('click', () => flushOutbox(true));
 }
 async function viewQuestionnaire(id) {
   let inst;
-  try { inst = await api(`/instances/${id}`); } catch { go('#/journey'); return; }
+  try { inst = await api(`/instances/${id}`); } catch (err) {
+    const tl = err.offline && (state.me?.timeline || []).find((x) => String(x.id) === String(id));
+    if (!tl) { go('#/journey'); return; }
+    inst = { ...tl, answers: null };
+  }
+  if (state.stale) inst.status = liveStatus(inst);
+  if (inst.status === 'done') outbox.drop(id);
+  const queued = outbox.get(id);
   if (inst.status === 'locked') { go('#/journey'); return; }
   const [label, sub] = slotLabel(inst);
   const ro = inst.status !== 'open';
-  const d = state.draft[location.hash] || { answers: {} };
+  const d = state.draft[location.hash] || (queued ? { answers: queued.answers } : { answers: {} });
   const daily = inst.kind === 'Q2';
+  const queuedNote = () => { if (queued) root.querySelector('#f')?.insertAdjacentHTML('beforebegin', `<p class="queued-note" role="status">${esc(t().queuedNote)}</p>`); };
   const isEnd = inst.slot === 'end';
   const ctx = { yesterday: fmtDate(prevDay(inst.open_date), { weekday: 'long', day: 'numeric', month: 'long' }) };
   const statusBadge = `<p class="badge ${inst.status}">${t()[`st_${inst.status}`]}</p>`;
@@ -899,7 +1028,7 @@ async function viewQuestionnaire(id) {
     const p = practiceFor(inst.day_number, totalDays());
     const evening = new Date().getHours() >= 17;
     const showIntro = inst.day_number === 1 || !store.get(introSeenKey());
-    const collapsed = !state.draft[location.hash];
+    const collapsed = !state.draft[location.hash] && !queued;
     shell(`
       <div id="practice-view" ${collapsed ? '' : 'hidden'}>
         ${showIntro ? `<div class="intro-day">${audioCard('intro')}${inst.day_number === 1 ? '' : `<p class="ac-foot"><button type="button" class="link small" id="hide-intro">${esc(t().hideIntro)}</button> · ${esc(t().introLater)}</p>`}</div>` : ''}
@@ -942,6 +1071,7 @@ async function viewQuestionnaire(id) {
     root.querySelector('#reveal').addEventListener('click', () => showJournal(true));
     if (!jv.hidden) { mast.classList.add('stepped'); h1.textContent = t().journalTitle; }
     const form = root.querySelector('#f');
+    queuedNote();
     if (ro) { applyShowIf(form); return; }
     const count = form.querySelector('.jb-count');
     const updateCount = () => {
@@ -953,7 +1083,7 @@ async function viewQuestionnaire(id) {
     };
     form.addEventListener('change', () => setTimeout(updateCount));
     form.addEventListener('input', updateCount);
-    wireForm('Q2', (answers) => api(`/instances/${id}`, { answers }));
+    wireForm('Q2', (answers) => api(`/instances/${id}`, { answers }), '#/journey', id);
     updateCount();
     return;
   } else if (isEnd && ro) {
@@ -982,6 +1112,7 @@ async function viewQuestionnaire(id) {
       compact: true, medbar: isEnd || isFollow ? {} : null, hero: `<p class="kicker">${esc(sub)}</p><h1>${esc(isEnd ? t().takeHome : label)}</h1>${intro ? `<p class="lede">${esc(intro)}</p>` : ''}`,
     });
   }
+  queuedNote();
   root.querySelector('#reveal')?.addEventListener('click', (e) => {
     e.currentTarget.remove();
     const f = root.querySelector('#f');
@@ -990,7 +1121,12 @@ async function viewQuestionnaire(id) {
   });
   const form = root.querySelector('#f');
   if (ro) { applyShowIf(form); return; }
-  wireForm(inst.kind, (answers) => api(`/instances/${id}`, { answers }), isEnd ? `#/q/${id}` : '#/journey');
+  wireForm(inst.kind, (answers) => api(`/instances/${id}`, { answers }), isEnd ? `#/q/${id}` : '#/journey', id);
+}
+function viewOffline() {
+  shell(`<div class="card"><h2 class="card-title">${esc(t().offlineTitle)}</h2><p>${esc(t().offlineText)}</p>
+    <button class="btn" id="retry">${esc(t().retry)}</button></div>`, { narrow: true });
+  root.querySelector('#retry').addEventListener('click', () => route());
 }
 // ---------- router ----------
 async function route(keepDraft = false) {
@@ -1003,14 +1139,18 @@ async function route(keepDraft = false) {
   if (['login', 'register', 'forgot'].includes(page)) {
     return ({ login: viewLogin, register: viewRegister, forgot: viewForgot })[page]();
   }
+  state.stale = false;
   try {
     state.me = await api('/me');
     if (!keepDraft && state.me.user.language && state.me.user.language !== state.lang && !store.get('ic_lang')) state.lang = state.me.user.language;
-  } catch {
+  } catch (err) {
+    if (err.offline) return viewOffline();
     state.me = null;
     go('#/login');
     return;
   }
+  if (state.stale) applyLiveStatus(state.me);
+  flushOutbox();
   if (page === 'q' && arg) return viewQuestionnaire(arg);
   return viewJourney();
 }

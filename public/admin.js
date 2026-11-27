@@ -74,6 +74,14 @@ async function load() {
           <td><span class="tag ${esc(m.status)}" title="${esc(m.error || '')}">${esc(m.status)}</span></td>
           <td>${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">open</a>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No emails yet.</td></tr>'}</tbody>
       </table></div>
+    </div>
+    <div class="card"><h3>Clinic staff page (/staff)</h3>
+      <p class="muted small">Logins and temporary passwords created by colleagues (latest 50).</p>
+      <div class="scroll"><table>
+        <thead><tr><th>When (UTC)</th><th>Action</th><th>Participant</th></tr></thead>
+        <tbody>${(d.staffLog || []).map((l) => `
+          <tr><td>${esc(l.created_at)}</td><td>${l.action === 'temporary_password' ? 'New temporary password' : 'Staff login'}</td><td>${esc(l.participant_code ? `${l.participant_code} · ${l.email}` : '')}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nothing yet.</td></tr>'}</tbody>
+      </table></div>
     </div>`;
 
   app.querySelector('#tick').addEventListener('click', async () => { await api('/run-scheduler', {}); load(); });

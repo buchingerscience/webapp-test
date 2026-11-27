@@ -78,7 +78,7 @@ main.narrow { max-width: 460px; }
 
 /* forms */
 label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 14px; }
-input[type=email], input[type=password], input[type=date], input[type=number], select {
+input[type=email], input[type=text], input[type=password], input[type=date], input[type=number], select {
   display: block; width: 100%; margin-top: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
   font: 400 17px var(--arizona); color: var(--ink); background: #fffefa; appearance: none; -webkit-appearance: none; min-height: 48px;
 }
@@ -642,3 +642,12 @@ input:focus, select:focus { outline: 3px solid var(--mid-blue); outline-offset: 
 /* Follow-up block inside a section (e.g. statements after "Did you meditate?") */
 .qsub { margin-top: 18px; }
 .qsub > .qhead { border-top: 0; padding-top: 4px; }
+
+/* 27 Nov 2026: room number, country, answers waiting to be sent, offline */
+.opt-label { font-weight: 400; color: var(--muted); font-size: .9em; }
+select.country { width: 100%; }
+.outbox-note { background: var(--open-soft, #f6ecd9); color: #6b4a1f; border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; }
+.outbox-note p { margin: 0 0 4px; }
+.offline-note, .queued-note { background: #eee9e1; color: var(--ink); border-radius: 12px; padding: 10px 14px; margin: 0 0 14px; font-size: 15px; }
+.row-status.pending { color: #8a5a1c; }
+.row.pending .row-sub { color: #8a5a1c; }
